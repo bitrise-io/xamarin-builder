@@ -29,7 +29,7 @@ class Builder
 
     if is_project_solution
       solution = Analyzer.new(@project_path).analyze_solution
-      solution.projects.each do |project|
+      solution[:projects].each do |project|
         mapping = project[:mapping]
         config = mapping["#{@configuration}|#{@platform}"]
         fail "No mapping found for config: #{@configuration}|#{@platform}" unless config
