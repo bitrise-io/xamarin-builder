@@ -79,7 +79,7 @@ class Analyzer
 
       next unless related_config_start
 
-      return true if line.downcase!.include? '<androidkeystore>true</androidkeystore>'
+      return true if line.downcase.include? '<androidkeystore>true</androidkeystore>'
     end
 
     false
