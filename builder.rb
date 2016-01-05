@@ -30,7 +30,7 @@ class Builder
     if is_project_solution
       solution = Analyzer.new(@project_path).analyze_solution
       solution.projects.each do |project|
-        mapping = project.mapping
+        mapping = project[:mapping]
         config = mapping["#{@configuration}|#{@platform}"]
         fail "No mapping found for config: #{@configuration}|#{@platform}" unless config
 
@@ -38,7 +38,7 @@ class Builder
         fail "No configuration, platform found for config: #{config}" unless configuration || platform
 
         projects << {
-            path: project.path,
+            path: project[:path],
             configuration: configuration,
             platform: platform
         }
@@ -84,8 +84,8 @@ class Builder
 
     if is_project_solution
       solution = Analyzer.new(@project_path).analyze_solution
-      solution.projects.each do |project|
-        mapping = project.mapping
+      solution[:projects].each do |project|
+        mapping = project[:mapping]
         config = mapping["#{@configuration}|#{@platform}"]
         fail "No mapping found for config: #{@configuration}|#{@platform}" unless config
 
@@ -93,7 +93,7 @@ class Builder
         fail "No configuration, platform found for config: #{config}" unless configuration || platform
 
         projects << {
-            path: project.path,
+            path: project[:path],
             configuration: configuration,
             platform: platform
         }
