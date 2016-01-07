@@ -14,56 +14,55 @@ class ProjectAnalyzer
     fail "File (#{path}) not exist" unless File.exist? path
 
     ext = File.extname(path)
-    fail "Path (#{path}) is not a csproj path, extension should be: #{CSPROJ_EXT}" if ext != CSPROJ_EXT &&  ext != SHPROJ_EXT
+    fail "Path (#{path}) is not a csproj path, extension should be: #{CSPROJ_EXT}" if ext != CSPROJ_EXT && ext != SHPROJ_EXT
 
     @path = path
   end
 
   def analyze(configuration, platform)
-    project_to_build = {
-        path: @path,
-        configuration: configuration,
-        platform: platform
-    }
 
     # Collect project information
 
-    analyzer = ProjectAnalyzer.new(project_to_build[:path])
-
-    output_path = analyzer.output_path(project_to_build[:configuration], project_to_build[:platform])
-    api = analyzer.xamarin_api
+    id = project_id
+    output_path = output_path(configuration, platform)
+    api = xamarin_api
     is_test = (api == XAMARIN_UITEST_API)
     build_ipa = false
     if api == MONOTOUCH_API_NAME || api == XAMARIN_IOS_API_NAME
-      build_ipa = analyzer.allowed_to_build_ipa(project_to_build[:configuration], project_to_build[:platform])
+      build_ipa = allowed_to_build_ipa(configuration, platform)
     end
     sign_apk = false
     if api == MONO_ANDROID_API_NAME
-      sign_apk = analyzer.allowed_to_sign_android(project_to_build[:configuration], project_to_build[:platform])
+      sign_apk = allowed_to_sign_android(configuration, platform)
     end
 
-    related_test_project = ''
-    if !is_test
+    related_test_project = nil
+    unless is_test
       s_path = solution_path
       if s_path
         solution = SolutionAnalyzer.new(s_path).analyze
-        solution[:test_projects].each do |test_project_path|
-          ProjectAnalyzer.new(test_project_path[:path]).referred_project_paths.each do |referred_project_path|
-            relative_referred_project_path = Pathname.new(referred_project_path).relative_path_from(Pathname.new(File.expand_path(File.dirname(s_path)))).cleanpath
-            related_test_project = test_project_path[:path] if Pathname.new(@path).cleanpath == relative_referred_project_path
+        solution[:test_projects].each do |test_project|
+          ProjectAnalyzer.new(test_project[:path]).referred_project_ids.each do |referred_project_id|
+            related_test_project = test_project[:path] if referred_project_id == id
           end
         end
       end
     end
 
-    project_to_build[:api] = api
-    project_to_build[:output_path] = output_path
-    project_to_build[:is_test] = is_test
-    project_to_build[:build_ipa] = build_ipa
-    project_to_build[:sign_apk] = sign_apk
-    project_to_build[:related_test_project] = related_test_project unless related_test_project == ''
+    project = {
+        id: id,
+        path: @path,
+        configuration: configuration,
+        platform: platform,
+        api: api,
+        output_path: output_path,
+        is_test: is_test,
+        build_ipa: build_ipa,
+        sign_apk: sign_apk,
+    }
+    project[:related_test_project] = related_test_project if related_test_project
 
-    project_to_build
+    project
   end
 
   def solution_path
@@ -100,22 +99,57 @@ class ProjectAnalyzer
     nil
   end
 
-  def referred_project_paths
-    # <ProjectReference Include="..\CreditCardValidator.Droid\CreditCardValidator.Droid.csproj">
-    referred_project_regexp = '<ProjectReference Include="(?<project>.*)">'
-    paths = []
+
+  def project_id
+    # <ProjectGuid>{90F3C584-FD69-4926-9903-6B9771847782}</ProjectGuid>
+    project_id_regexp = '<ProjectGuid>{(?<id>.*)<\/ProjectGuid>'
 
     File.open(@path).each do |line|
-      match = line.match(referred_project_regexp)
+      match = line.match(project_id_regexp)
       if match && match.captures && match.captures.count == 1
-        referred_project_path = match.captures[0].strip.gsub(/\\/, '/')
-        project_dir = File.dirname(@path)
-
-        paths << File.expand_path(referred_project_path, project_dir)
+        return match.captures[0]
       end
     end
 
-    paths
+    nil
+  end
+
+  def referred_project_ids
+    ids = []
+
+    # <ProjectReference Include="..\CreditCardValidator.Droid\CreditCardValidator.Droid.csproj">
+    project_reference_start_regexp = '<ProjectReference Include="(?<project>.*)">'
+    project_reference_end_regexp = '<\/ProjectReference>'
+    project_reference_start = false
+
+    # <Project>{90F3C584-FD69-4926-9903-6B9771847782}</Project>
+    project_regexp = '<Project>{(?<id>.*)<\/Project>'
+
+    File.open(@path).each do |line|
+      match = line.match(project_reference_start_regexp)
+      if match && match.captures && match.captures.count == 1
+        # referred_project_path = match.captures[0].strip.gsub(/\\/, '/')
+        project_reference_start = true
+        next
+      end
+
+      match = line.match(project_reference_end_regexp)
+      if match
+        project_reference_start = false
+        next
+      end
+
+      if project_reference_start
+        match = line.match(project_regexp)
+        if match && match.captures && match.captures.count == 1
+          id = match.captures[0]
+          ids << id
+          next
+        end
+      end
+    end
+
+    ids
   end
 
   def output_path(configuration, platform)
@@ -148,12 +182,12 @@ class ProjectAnalyzer
         output_path = match.captures[0].strip
         output_path = output_path.gsub(/\\/, '/')
 
-        cleaned = false
-        while !cleaned do
+        dirty = true
+        while dirty do
           if output_path[output_path.length-1] == '/'
             output_path[output_path.length-1] = ''
           else
-            cleaned = true
+            dirty = false
           end
         end
 
@@ -290,8 +324,6 @@ class SolutionAnalyzer
     solution = {}
     projects = {}
 
-    base_directory = File.dirname(@path)
-
     # Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CreditCardValidator", "CreditCardValidator\CreditCardValidator.csproj", "{99A825A6-6F99-4B94-9F65-E908A6347F1E}"
     p_regexp = 'Project\("{(?<solution_id>.*)}"\) = "(?<project_name>.*)", "(?<project_path>.*)", "{(?<project_id>.*)}"'
 
@@ -314,7 +346,7 @@ class SolutionAnalyzer
         # solution_id =  match.captures[0]
         # project_name = match.captures[1]
         project_path = match.captures[2].strip.gsub(/\\/, '/')
-        project_path = File.join(base_directory, project_path)
+        project_path = File.expand_path(project_path, File.dirname(@path))
 
         next unless File.exist? project_path
 
@@ -390,12 +422,14 @@ class SolutionAnalyzer
 
       if api == XAMARIN_UITEST_API
         ret_test_projects << {
+            id: id,
             path: path,
             mapping: mapping,
             api: api
         }
       else
         ret_projects << {
+            id: id,
             path: path,
             mapping: mapping,
             api: api
