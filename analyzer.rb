@@ -1,4 +1,3 @@
-
 # -----------------------
 # --- Constants
 # -----------------------
@@ -45,24 +44,7 @@ class ProjectAnalyzer
 
     use_unsafe_blocks = parse_use_unsafe_blocks?
 
-    # related_test_project = nil
-    # unless is_test
-    #   s_path = parse_solution_path
-    #   if s_path
-    #     solution = SolutionAnalyzer.new(s_path).analyze
-    #     solution[:test_projects].each do |test_project|
-    #       ProjectAnalyzer.new(test_project[:path]).parse_referred_project_ids.each do |referred_project_id|
-    #         if referred_project_id == id
-    #           puts "test_project: #{test_project}"
-    #           parsed_test_project = ProjectAnalyzer.new(test_project[:path]).analyze(test_project[:configuration], test_project[:platform])
-    #           related_test_project = parsed_test_project
-    #         end
-    #       end
-    #     end
-    #   end
-    # end
-
-    project = {
+    {
         id: id,
         path: @path,
         configuration: configuration,
@@ -74,8 +56,6 @@ class ProjectAnalyzer
         sign_apk: sign_apk,
         use_unsafe_blocks: use_unsafe_blocks
     }
-
-    # project[:related_test_project] = related_test_project if related_test_project
   end
 
   def parse_configs
