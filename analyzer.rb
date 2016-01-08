@@ -1,4 +1,3 @@
-
 # -----------------------
 # --- Constants
 # -----------------------
@@ -45,19 +44,6 @@ class ProjectAnalyzer
 
     use_unsafe_blocks = parse_use_unsafe_blocks?
 
-    related_test_project = ''
-    unless is_test
-      s_path = parse_solution_path
-      if s_path
-        solution = SolutionAnalyzer.new(s_path).analyze
-        solution[:test_projects].each do |test_project|
-          ProjectAnalyzer.new(test_project[:path]).parse_referred_project_ids.each do |referred_project_id|
-            related_test_project = test_project[:path] if referred_project_id == id
-          end
-        end
-      end
-    end
-
     {
         id: id,
         path: @path,
@@ -68,8 +54,7 @@ class ProjectAnalyzer
         is_test: is_test,
         build_ipa: build_ipa,
         sign_apk: sign_apk,
-        use_unsafe_blocks: use_unsafe_blocks,
-        related_test_project: related_test_project
+        use_unsafe_blocks: use_unsafe_blocks
     }
   end
 
@@ -375,6 +360,26 @@ class SolutionAnalyzer
 
     solution = SolutionAnalyzer.new(@path).analyze
     solution[:projects].each do |project|
+      mapping = project[:mapping]
+      config = mapping["#{configuration}|#{platform}"]
+      fail "No mapping found for config: #{configuration}|#{platform}" unless config
+
+      mapped_configuration, mapped_platform = config.split('|')
+      fail "No configuration, platform found for config: #{config}" unless configuration || platform
+
+      parsed_project = ProjectAnalyzer.new(project[:path]).analyze(mapped_configuration, mapped_platform)
+
+      projects_to_build << parsed_project
+    end
+
+    projects_to_build
+  end
+
+  def collect_test_projects(configuration, platform)
+    projects_to_build = []
+
+    solution = SolutionAnalyzer.new(@path).analyze
+    solution[:test_projects].each do |project|
       mapping = project[:mapping]
       config = mapping["#{configuration}|#{platform}"]
       fail "No mapping found for config: #{configuration}|#{platform}" unless config
