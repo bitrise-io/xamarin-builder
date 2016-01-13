@@ -1,7 +1,7 @@
 require_relative './analyzer'
 
 class Builder
-  def initialize(path, configuration, platform)
+  def initialize(path, configuration, platform, project_type_filter=nil)
     fail 'Empty path provided' if path.to_s == ''
     fail "File (#{path}) not exist" unless File.exist? path
 
@@ -11,13 +11,14 @@ class Builder
     @path = path
     @configuration = configuration
     @platform = platform
+    @project_type_filter = project_type_filter || ['ios', 'android']
   end
 
   def build
     analyzer = Analyzer.new()
     analyzer.analyze(@path)
 
-    build_commands = analyzer.build_commands(@configuration, @platform)
+    build_commands = analyzer.build_commands(@configuration, @platform, @project_type_filter)
 
     build_commands.each do |build_command|
       puts
@@ -26,7 +27,7 @@ class Builder
       system(build_command)
     end
 
-    @generated_files = analyzer.collect_generated_files(@configuration, @platform)
+    @generated_files = analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
   end
 
   def generated_files

@@ -59,7 +59,7 @@ class Analyzer
     puts @solution
   end
 
-  def build_commands(config, platform)
+  def build_commands(config, platform, project_type_filter)
     configuration = "#{config}|#{platform}"
     build_commands = []
 
@@ -69,6 +69,7 @@ class Analyzer
 
       case project[:api]
         when 'ios'
+          next unless project_type_filter.include? 'ios'
           next unless project[:output_type].eql?('exe')
 
           raise "No configuration mapping found for (#{configuration}) in project #{project[:name]}" unless project_configuration
@@ -84,6 +85,7 @@ class Analyzer
               "-p:#{project[:name]}"
           ].join(' ')
         when 'android'
+          next unless project_type_filter.include? 'android'
           next unless project[:android_application]
 
           raise "No configuration mapping found for (#{configuration}) in project #{project[:name]}" unless project_configuration
@@ -113,7 +115,7 @@ class Analyzer
     return build_commands
   end
 
-  def collect_generated_files(config, platform)
+  def collect_generated_files(config, platform, project_type_filter)
     outputs_hash = {}
 
     configuration = "#{config}|#{platform}"
@@ -124,6 +126,7 @@ class Analyzer
 
       case project[:api]
         when 'ios'
+          next unless project_type_filter.include? 'ios'
           next unless project[:output_type].eql?('exe')
 
           raise "No configuration mapping found for (#{configuration}) in project #{project[:name]}" unless project_configuration
@@ -146,6 +149,7 @@ class Analyzer
             outputs_hash[:app] = full_output_path
           end
         when 'android'
+          next unless project_type_filter.include? 'android'
           next unless project[:android_application]
 
           raise "No configuration mapping found for (#{configuration}) in project #{project[:name]}" unless project_configuration
