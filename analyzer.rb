@@ -1,3 +1,6 @@
+require 'time'
+require 'pathname'
+
 # -----------------------
 # --- Constants
 # -----------------------
@@ -29,15 +32,18 @@ REGEX_PROJECT_BUILD_IPA = /<BuildIpa>true<\/BuildIpa>/i
 REGEX_PROJECT_REFERENCE_XAMARIN_IOS = /Include="Xamarin.iOS"/i
 REGEX_PROJECT_REFERENCE_XAMARIN_ANDROID = /Include="Mono.Android"/i
 REGEX_PROJECT_REFERENCE_XAMARIN_UITEST = /Include="Xamarin.UITest"/i
+REGEX_PROJECT_MTOUCH_ARCH = /<MtouchArch>(?<arch>.*)<\/MtouchArch>/
+
+REGEX_ARCHIVE_DATE_TIME = /\s(.*[AM]|[PM]).*\./i
 
 class Analyzer
   def analyze(path)
     @path = path
 
     case type
-    when SOLUTION
-      analyze_solution(@path)
-    when PROJECT
+      when SOLUTION
+        analyze_solution(@path)
+      when PROJECT
     end
 
     @solution[:projects].each do |project|
@@ -53,31 +59,73 @@ class Analyzer
 
   def build_command(config, platform)
     configuration = "#{config}|#{platform}"
-    project_configuration = nil
 
     @solution[:projects].each do |project|
       project_configuration = project[:mappings][configuration]
 
       case project[:api]
-      when 'ios'
-        next unless project[:output_type].eql?('exe')
-      else
-        next
+        when 'ios'
+          next unless project[:output_type].eql?('exe')
+        else
+          next
       end
 
-      raise "No configuration found for project #{project[:path]}" unless project_configuration
-      generate_archive = project[:configs][project_configuration][:ipa_package] || project[:configs][project_configuration][:build_ipa]
+      raise "No configuration mapping found for (#{configuration}) in project #{project[:name]}" unless project_configuration
+
+      archs = project[:configs][project_configuration][:mtouch_arch]
+      generate_archive = archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
 
       return [
-        MDTOOL_PATH,
-        generate_archive ? 'archive' : 'build',
-        "\"-c:#{configuration}\"",
-        @solution[:path],
-        "-p:#{project[:name]}"
+          MDTOOL_PATH,
+          generate_archive ? 'archive' : 'build',
+          "\"-c:#{configuration}\"",
+          @solution[:path],
+          "-p:#{project[:name]}"
       ].join(' ')
 
       # TODO /Library/Frameworks/Mono.framework/Commands/xbuild /t:SignAndroidPackage /p:Configuration=Release /path/to/android.csproj
     end
+  end
+
+  def output_hash(config, platform)
+    outputs_hash = {}
+
+    configuration = "#{config}|#{platform}"
+
+    @solution[:projects].each do |project|
+      project_configuration = project[:mappings][configuration]
+
+      case project[:api]
+        when 'ios'
+          next unless project[:output_type].eql?('exe')
+
+          raise "No configuration mapping found for (#{configuration}) in project #{project[:name]}" unless project_configuration
+
+          assembly_name = project[:assembly_name]
+
+          archs = project[:configs][project_configuration][:mtouch_arch]
+          generate_archive = archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
+
+          project_path = project[:path]
+          project_dir = File.dirname(project_path)
+          rel_output_dir = project[:configs][project_configuration][:output_path]
+          full_output_dir = File.join(project_dir, rel_output_dir)
+
+          if generate_archive
+            full_output_path = latest_archive_path(assembly_name)
+
+            outputs_hash[:xcarchive] = full_output_path
+          else
+            full_output_path = export_artifact(assembly_name, full_output_dir, '.app')
+
+            outputs_hash[:app] = full_output_path
+          end
+        else
+          next
+      end
+    end
+
+    outputs_hash
   end
 
   private
@@ -90,8 +138,8 @@ class Analyzer
 
   def analyze_solution(solution_path)
     @solution = {
-      path: solution_path,
-      base_dir: File.dirname(@path)
+        path: solution_path,
+        base_dir: File.dirname(@path)
     }
 
     parse_solution_configs = false
@@ -107,9 +155,9 @@ class Analyzer
         if File.file? project_path
           @solution[:id] = match.captures[0]
           (@solution[:projects] ||= []) << {
-            name: match.captures[1],
-            path: project_path,
-            id: match.captures[3],
+              name: match.captures[1],
+              path: project_path,
+              id: match.captures[3],
           }
         else
           puts "Warning: Skipping #{project_path}: directory or not found on file system"
@@ -139,7 +187,7 @@ class Analyzer
         if match != nil && match.captures != nil && match.captures.count == 5
           project_id = match.captures[0]
 
-          project = project_with_id(match.captures[0])
+          project = project_with_id(project_id)
           (project[:mappings] ||= {})["#{match.captures[1]}|#{match.captures[2].delete(' ')}"] = "#{match.captures[3]}|#{match.captures[4].strip.delete(' ')}"
         end
       end
@@ -183,6 +231,11 @@ class Analyzer
           project[:configs][project_config][:output_path] = File.join(match.captures[0].split('\\'))
         end
 
+        match = line.match(REGEX_PROJECT_MTOUCH_ARCH)
+        if match != nil && match.captures != nil && match.captures.count == 1
+          project[:configs][project_config][:mtouch_arch] = match.captures[0].split(',').collect { |x| x.strip || x }
+        end
+
         match = line.match(REGEX_PROJECT_IPA_PACKAGE)
         project[:configs][project_config][:ipa_package] = true if match != nil
 
@@ -215,5 +268,41 @@ class Analyzer
     @solution[:projects].each do |project|
       return project if project[:id].eql? id
     end
+  end
+
+  def export_artifact(assembly_name, output_path, extension)
+    artifact = Dir[File.join(output_path, "#{assembly_name}#{extension}")].first
+    return nil unless artifact
+
+    full_path = Pathname.new(artifact).realpath.to_s
+    return nil unless full_path
+    return nil unless File.exist? full_path
+
+    full_path
+  end
+
+  def latest_archive_path(assembly_name)
+    home_dir = ENV['HOME']
+    default_archives_path = File.join(home_dir, 'Library/Developer/Xcode/Archives')
+    raise "No default Xcode archive path found at #{default_archives_path}" unless File.exist? default_archives_path
+
+    latest_archive = nil
+    latest_archive_date = nil
+
+    archives = Dir[File.join(default_archives_path, "**/#{assembly_name}*.xcarchive")]
+    archives.each do |archive_path|
+      match = archive_path.match(REGEX_ARCHIVE_DATE_TIME)
+
+      if match != nil && match.captures != nil && match.captures.size == 1
+        date = DateTime.strptime(match.captures[0], '%m-%d-%y %l.%M %p')
+
+        if (latest_archive_date ||= date) < date
+          latest_archive_date = date
+          latest_archive = archive_path
+        end
+      end
+    end
+
+    latest_archive
   end
 end
