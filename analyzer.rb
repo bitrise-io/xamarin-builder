@@ -113,7 +113,7 @@ class Analyzer
     return build_commands
   end
 
-  def output_hash(config, platform)
+  def collect_generated_files(config, platform)
     outputs_hash = {}
 
     configuration = "#{config}|#{platform}"

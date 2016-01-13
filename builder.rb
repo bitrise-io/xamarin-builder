@@ -21,13 +21,15 @@ class Builder
 
     build_commands.each do |build_command|
       puts
-      puts build_command
+      puts "\e[32m#{build_command}\e[0m"
       puts
       system(build_command)
     end
 
-    output_hash = analyzer.output_hash(@configuration, @platform)
-    puts
-    puts "output_hash: #{output_hash}"
+    @generated_files = analyzer.collect_generated_files(@configuration, @platform)
+  end
+
+  def generated_files
+    @generated_files
   end
 end
