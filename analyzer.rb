@@ -142,11 +142,11 @@ class Analyzer
           if generate_archive
             full_output_path = latest_archive_path(project[:name])
 
-            outputs_hash[:xcarchive] = full_output_path
+            outputs_hash[:xcarchive] = full_output_path if full_output_path
           else
             full_output_path = export_artifact(project[:assembly_name], full_output_dir, '.app')
 
-            outputs_hash[:app] = full_output_path
+            outputs_hash[:app] = full_output_path if full_output_path
           end
         when 'android'
           next unless project_type_filter.include? 'android'
@@ -342,7 +342,7 @@ class Analyzer
       if match != nil && match.captures != nil && match.captures.size == 1
         date = DateTime.strptime(match.captures[0], '%m-%d-%y %l.%M %p')
 
-        if (latest_archive_date ||= date) < date
+        if !latest_archive_date || latest_archive_date < date
           latest_archive_date = date
           latest_archive = archive_path
         end
