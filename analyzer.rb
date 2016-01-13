@@ -57,8 +57,9 @@ class Analyzer
     puts @solution
   end
 
-  def build_command(config, platform)
+  def build_commands(config, platform)
     configuration = "#{config}|#{platform}"
+    build_commands = []
 
     @solution[:projects].each do |project|
       project_configuration = project[:mappings][configuration]
@@ -66,22 +67,24 @@ class Analyzer
       case project[:api]
         when 'ios'
           next unless project[:output_type].eql?('exe')
+
+          raise "No configuration mapping found for (#{configuration}) in project #{project[:name]}" unless project_configuration
+
+          archs = project[:configs][project_configuration][:mtouch_arch]
+          generate_archive = archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
+
+          build_commands << [
+              MDTOOL_PATH,
+              generate_archive ? 'archive' : 'build',
+              "\"-c:#{configuration}\"",
+              @solution[:path],
+              "-p:#{project[:name]}"
+          ].join(' ')
         else
           next
       end
 
-      raise "No configuration mapping found for (#{configuration}) in project #{project[:name]}" unless project_configuration
-
-      archs = project[:configs][project_configuration][:mtouch_arch]
-      generate_archive = archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
-
-      return [
-          MDTOOL_PATH,
-          generate_archive ? 'archive' : 'build',
-          "\"-c:#{configuration}\"",
-          @solution[:path],
-          "-p:#{project[:name]}"
-      ].join(' ')
+      return build_commands
 
       # TODO /Library/Frameworks/Mono.framework/Commands/xbuild /t:SignAndroidPackage /p:Configuration=Release /path/to/android.csproj
     end
