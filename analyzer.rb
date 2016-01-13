@@ -28,7 +28,8 @@ REGEX_PROJECT_PROPERTY_GROUP_WITH_CONDITION = /<PropertyGroup Condition=\" '\$\(
 REGEX_PROJECT_PROPERTY_GROUP_END = /<\/PropertyGroup>/i
 REGEX_PROJECT_OUTPUT_PATH = /<OutputPath>(?<output_path>.*)<\/OutputPath>/i
 REGEX_PROJECT_IPA_PACKAGE = /<IpaPackageName>/i
-REGEX_PROJECT_BUILD_IPA = /<BuildIpa>true<\/BuildIpa>/i
+REGEX_PROJECT_BUILD_IPA = /<BuildIpa>True<\/BuildIpa>/i
+REGEX_PROJECT_SIGN_ANDROID = /<AndroidKeyStore>True<\/AndroidKeyStore>/i
 REGEX_PROJECT_REFERENCE_XAMARIN_IOS = /Include="Xamarin.iOS"/i
 REGEX_PROJECT_REFERENCE_XAMARIN_ANDROID = /Include="Mono.Android"/i
 REGEX_PROJECT_REFERENCE_XAMARIN_UITEST = /Include="Xamarin.UITest"/i
@@ -235,6 +236,9 @@ class Analyzer
         if match != nil && match.captures != nil && match.captures.count == 1
           project[:configs][project_config][:mtouch_arch] = match.captures[0].split(',').collect { |x| x.strip || x }
         end
+
+        match = line.match(REGEX_PROJECT_SIGN_ANDROID)
+        project[:configs][project_config][:sign_android] = true if match != nil
 
         match = line.match(REGEX_PROJECT_IPA_PACKAGE)
         project[:configs][project_config][:ipa_package] = true if match != nil
