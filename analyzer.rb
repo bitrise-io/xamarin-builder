@@ -71,7 +71,7 @@ class Analyzer
           raise "No configuration mapping found for (#{configuration}) in project #{project[:name]}" unless project_configuration
 
           archs = project[:configs][project_configuration][:mtouch_arch]
-          generate_archive = archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
+          generate_archive = archs && archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
 
           build_commands << [
               MDTOOL_PATH,
@@ -104,10 +104,8 @@ class Analyzer
 
           raise "No configuration mapping found for (#{configuration}) in project #{project[:name]}" unless project_configuration
 
-          assembly_name = project[:assembly_name]
-
           archs = project[:configs][project_configuration][:mtouch_arch]
-          generate_archive = archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
+          generate_archive = archs && archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
 
           project_path = project[:path]
           project_dir = File.dirname(project_path)
@@ -115,11 +113,11 @@ class Analyzer
           full_output_dir = File.join(project_dir, rel_output_dir)
 
           if generate_archive
-            full_output_path = latest_archive_path(assembly_name)
+            full_output_path = latest_archive_path(project[:name])
 
             outputs_hash[:xcarchive] = full_output_path
           else
-            full_output_path = export_artifact(assembly_name, full_output_dir, '.app')
+            full_output_path = export_artifact(project[:assembly_name], full_output_dir, '.app')
 
             outputs_hash[:app] = full_output_path
           end
@@ -274,14 +272,10 @@ class Analyzer
   end
 
   def export_artifact(assembly_name, output_path, extension)
-    artifact = Dir[File.join(output_path, "#{assembly_name}#{extension}")].first
-    return nil unless artifact
-
-    full_path = Pathname.new(artifact).realpath.to_s
-    return nil unless full_path
-    return nil unless File.exist? full_path
-
-    full_path
+    artifact_path = Dir[File.join(output_path, "#{assembly_name}#{extension}")].first
+    
+    return nil if artifact_path == nil || !File.exists?(artifact_path)
+    artifact_path
   end
 
   def latest_archive_path(assembly_name)
