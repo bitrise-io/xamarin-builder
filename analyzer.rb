@@ -29,6 +29,7 @@ REGEX_PROJECT_PROPERTY_GROUP_END = /<\/PropertyGroup>/i
 REGEX_PROJECT_OUTPUT_PATH = /<OutputPath>(?<output_path>.*)<\/OutputPath>/i
 REGEX_PROJECT_IPA_PACKAGE = /<IpaPackageName>/i
 REGEX_PROJECT_BUILD_IPA = /<BuildIpa>True<\/BuildIpa>/i
+REGEX_PROJECT_ANDROID_APPLICATION= /<AndroidApplication>True<\/AndroidApplication>/i
 REGEX_PROJECT_SIGN_ANDROID = /<AndroidKeyStore>True<\/AndroidKeyStore>/i
 REGEX_PROJECT_REFERENCE_XAMARIN_IOS = /Include="Xamarin.iOS"/i
 REGEX_PROJECT_REFERENCE_XAMARIN_ANDROID = /Include="Mono.Android"/i
@@ -63,6 +64,7 @@ class Analyzer
     build_commands = []
 
     @solution[:projects].each do |project|
+      next unless project[:mappings]
       project_configuration = project[:mappings][configuration]
 
       case project[:api]
@@ -81,14 +83,34 @@ class Analyzer
               @solution[:path],
               "-p:#{project[:name]}"
           ].join(' ')
+        when 'android'
+          next unless project[:android_application]
+
+          raise "No configuration mapping found for (#{configuration}) in project #{project[:name]}" unless project_configuration
+
+          sign_android = project[:configs][project_configuration][:sign_android]
+
+          build_commands << [
+              MDTOOL_PATH,
+              'build',
+              "\"-c:#{configuration}\"",
+              @solution[:path],
+              "-p:#{project[:name]}"
+          ].join(' ')
+
+          build_commands << [
+            'xbuild',
+            sign_android ? '/t:SignAndroidPackage' : '',
+            "/p:Configuration=#{project_configuration.split('|').first}",
+            "/p:Platform=#{project_configuration.split('|').last}",
+            project[:path]
+          ].join(' ')
         else
           next
       end
-
-      return build_commands
-
-      # TODO /Library/Frameworks/Mono.framework/Commands/xbuild /t:SignAndroidPackage /p:Configuration=Release /path/to/android.csproj
     end
+
+    return build_commands
   end
 
   def output_hash(config, platform)
@@ -206,7 +228,7 @@ class Analyzer
       # Guid
       match = line.match(REGEX_PROJECT_GUID)
       if match != nil && match.captures != nil && match.captures.count == 1
-        unless project[:id].eql? match.captures[0]
+        unless project[:id].casecmp(match.captures[0])
           raise "Invalid id found in project: #{project[:path]}"
         end
       end
@@ -221,6 +243,12 @@ class Analyzer
       match = line.match(REGEX_PROJECT_ASSEMBLY_NAME)
       if match != nil && match.captures != nil && match.captures.count == 1
         project[:assembly_name] = match.captures[0]
+      end
+
+      # android application
+      match = line.match(REGEX_PROJECT_ANDROID_APPLICATION)
+      if match != nil
+        project[:android_application] = true
       end
 
       # PropertyGroup with condition
