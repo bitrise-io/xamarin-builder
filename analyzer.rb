@@ -100,7 +100,7 @@ class Analyzer
 
           build_commands << [
             'xbuild',
-            sign_android ? '/t:SignAndroidPackage' : '',
+            sign_android ? '/t:SignAndroidPackage' : '/t:PackageForAndroid',
             "/p:Configuration=#{project_configuration.split('|').first}",
             "/p:Platform=#{project_configuration.split('|').last}",
             project[:path]
@@ -119,6 +119,7 @@ class Analyzer
     configuration = "#{config}|#{platform}"
 
     @solution[:projects].each do |project|
+      next unless project[:mappings]
       project_configuration = project[:mappings][configuration]
 
       case project[:api]
