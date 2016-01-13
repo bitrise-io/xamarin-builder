@@ -277,20 +277,19 @@ class Analyzer
 
   def export_artifact(assembly_name, output_path, extension)
     artifact_path = Dir[File.join(output_path, "#{assembly_name}#{extension}")].first
-    
+
     return nil if artifact_path == nil || !File.exists?(artifact_path)
     artifact_path
   end
 
-  def latest_archive_path(assembly_name)
-    home_dir = ENV['HOME']
-    default_archives_path = File.join(home_dir, 'Library/Developer/Xcode/Archives')
+  def latest_archive_path(project_name)
+    default_archives_path = File.join(ENV['HOME'], 'Library/Developer/Xcode/Archives')
     raise "No default Xcode archive path found at #{default_archives_path}" unless File.exist? default_archives_path
 
     latest_archive = nil
     latest_archive_date = nil
 
-    archives = Dir[File.join(default_archives_path, "**/#{assembly_name}*.xcarchive")]
+    archives = Dir[File.join(default_archives_path, "**/#{project_name}*.xcarchive")]
     archives.each do |archive_path|
       match = archive_path.match(REGEX_ARCHIVE_DATE_TIME)
 
