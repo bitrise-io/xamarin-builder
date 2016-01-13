@@ -145,6 +145,19 @@ class Analyzer
 
             outputs_hash[:app] = full_output_path
           end
+        when 'android'
+          next unless project[:android_application]
+
+          raise "No configuration mapping found for (#{configuration}) in project #{project[:name]}" unless project_configuration
+
+          project_path = project[:path]
+          project_dir = File.dirname(project_path)
+          rel_output_dir = project[:configs][project_configuration][:output_path]
+          full_output_dir = File.join(project_dir, rel_output_dir)
+
+          full_output_path = export_artifact('*', full_output_dir, '.apk')
+
+          outputs_hash[:apk] = full_output_path
         else
           next
       end
