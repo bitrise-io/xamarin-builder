@@ -24,10 +24,8 @@ class Builder
       puts
       puts "\e[32m#{build_command}\e[0m"
       puts
-      success = system(build_command)
-
-      raise 'Failed to execute build command' if success.nil?
-      raise 'Build failed' if !success
+      
+      raise 'Build failed' unless system(build_command)
     end
 
     @generated_files = analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
