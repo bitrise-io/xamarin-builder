@@ -43,7 +43,7 @@ class Builder
 
     raise 'Build failed' unless system(test_command)
 
-    @generated_files = analyzer.collect_generated_files(@configuration, @platform, nil)
+    @generated_files = analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
   end
 
   def generated_files
