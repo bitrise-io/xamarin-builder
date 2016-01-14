@@ -15,7 +15,7 @@ class Builder
   end
 
   def build
-    analyzer = Analyzer.new()
+    analyzer = Analyzer.new
     analyzer.analyze(@path)
 
     build_commands = analyzer.build_commands(@configuration, @platform, @project_type_filter)
@@ -24,9 +24,24 @@ class Builder
       puts
       puts "\e[32m#{build_command}\e[0m"
       puts
-      
+
       raise 'Build failed' unless system(build_command)
     end
+
+    @generated_files = analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
+  end
+
+  def build_test
+    analyzer = Analyzer.new
+    analyzer.analyze(@path)
+
+    test_command = analyzer.test_commands(@configuration, @platform)
+
+    puts
+    puts "\e[32m#{test_command}\e[0m"
+    puts
+
+    raise 'Build failed' unless system(test_command)
 
     @generated_files = analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
   end

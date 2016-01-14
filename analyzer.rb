@@ -24,6 +24,7 @@ REGEX_SOLUTION_GLOBAL_CONFIG_END = /EndGlobalSection/i
 REGEX_PROJECT_GUID = /<ProjectGuid>(?<project_id>.*)<\/ProjectGuid>/i
 REGEX_PROJECT_OUTPUT_TYPE = /<OutputType>(?<output_type>.*)<\/OutputType>/i
 REGEX_PROJECT_ASSEMBLY_NAME = /<AssemblyName>(?<assembly_name>.*)<\/AssemblyName>/i
+REGEX_PROJECT_MTOUCH_ARCH = /<MtouchArch>(?<arch>.*)<\/MtouchArch>/
 REGEX_PROJECT_PROPERTY_GROUP_WITH_CONDITION = /<PropertyGroup Condition=\" '\$\(Configuration\)\|\$\(Platform\)' == '(?<config>(\w|\s)*)\|(?<platform>(\w|\s)*)' \">/i
 REGEX_PROJECT_PROPERTY_GROUP_END = /<\/PropertyGroup>/i
 REGEX_PROJECT_OUTPUT_PATH = /<OutputPath>(?<output_path>.*)<\/OutputPath>/i
@@ -34,7 +35,10 @@ REGEX_PROJECT_SIGN_ANDROID = /<AndroidKeyStore>True<\/AndroidKeyStore>/i
 REGEX_PROJECT_REFERENCE_XAMARIN_IOS = /Include="Xamarin.iOS"/i
 REGEX_PROJECT_REFERENCE_XAMARIN_ANDROID = /Include="Mono.Android"/i
 REGEX_PROJECT_REFERENCE_XAMARIN_UITEST = /Include="Xamarin.UITest"/i
-REGEX_PROJECT_MTOUCH_ARCH = /<MtouchArch>(?<arch>.*)<\/MtouchArch>/
+
+REGEX_PROJECT_PROJECT_REFERENCE_START = /<ProjectReference Include="(?<project_path>.*)">/i
+REGEX_PROJECT_PROJECT_REFERENCE_END = /<\/ProjectReference>/i
+REGEX_PROJECT_REFERRED_PROJECT_ID = /<Project>(?<id>.*)<\/Project>/i
 
 REGEX_ARCHIVE_DATE_TIME = /\s(.*[AM]|[PM]).*\./i
 
@@ -112,7 +116,30 @@ class Analyzer
       end
     end
 
-    return build_commands
+    build_commands
+  end
+
+  def test_commands(config, platform)
+    configuration = "#{config}|#{platform}"
+    build_command = nil
+
+    @solution[:projects].each do |project|
+      next unless project[:mappings]
+      project_configuration = project[:mappings][configuration]
+
+      next unless project[:api] == 'uitest'
+
+      raise "No configuration mapping found for (#{configuration}) in project #{project[:name]}" unless project_configuration
+
+      build_command = [
+          MDTOOL_PATH,
+          'build',
+          "\"-c:#{configuration}\"",
+          @solution[:path],
+      ].join(' ')
+    end
+
+    build_command
   end
 
   def collect_generated_files(config, platform, project_type_filter)
@@ -128,8 +155,7 @@ class Analyzer
         when 'ios'
           next unless project_type_filter.include? 'ios'
           next unless project[:output_type].eql?('exe')
-
-          raise "No configuration mapping found for (#{configuration}) in project #{project[:name]}" unless project_configuration
+          next unless project_configuration
 
           archs = project[:configs][project_configuration][:mtouch_arch]
           generate_archive = archs && archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
@@ -139,20 +165,43 @@ class Analyzer
           rel_output_dir = project[:configs][project_configuration][:output_path]
           full_output_dir = File.join(project_dir, rel_output_dir)
 
+          outputs_hash[project[:id]] = {}
           if generate_archive
             full_output_path = latest_archive_path(project[:name])
 
-            outputs_hash[:xcarchive] = full_output_path if full_output_path
+            next unless full_output_path
+
+            outputs_hash[project[:id]][:xcarchive] = full_output_path
           else
             full_output_path = export_artifact(project[:assembly_name], full_output_dir, '.app')
 
-            outputs_hash[:app] = full_output_path if full_output_path
+            next unless full_output_path
+
+            outputs_hash[project[:id]][:app] = full_output_path
+
+            # Search for test dll
+            next unless project[:uitest_projects]
+
+            project[:uitest_projects].each do |test_project_id|
+              test_project = project_with_id(test_project_id)
+              test_project_configuration = test_project[:mappings][configuration]
+
+              next unless test_project_configuration
+
+              test_project_path = test_project[:path]
+              test_project_dir = File.dirname(test_project_path)
+              test_rel_output_dir = test_project[:configs][test_project_configuration][:output_path]
+              test_full_output_dir = File.join(test_project_dir, test_rel_output_dir)
+
+              test_full_output_path = export_artifact(test_project[:assembly_name], test_full_output_dir, '.dll')
+
+              (outputs_hash[project[:id]][:uitests] ||= []) << test_full_output_path
+            end
           end
         when 'android'
           next unless project_type_filter.include? 'android'
           next unless project[:android_application]
-
-          raise "No configuration mapping found for (#{configuration}) in project #{project[:name]}" unless project_configuration
+          next unless project_configuration
 
           project_path = project[:path]
           project_dir = File.dirname(project_path)
@@ -161,7 +210,29 @@ class Analyzer
 
           full_output_path = export_artifact('*', full_output_dir, '.apk')
 
-          outputs_hash[:apk] = full_output_path
+          next unless full_output_path
+
+          outputs_hash[project[:id]] = {}
+          outputs_hash[project[:id]][:apk] = full_output_path
+
+          # Search for test dll
+          next unless project[:uitest_projects]
+
+          project[:uitest_projects].each do |test_project_id|
+            test_project = project_with_id(test_project_id)
+            test_project_configuration = test_project[:mappings][configuration]
+
+            next unless test_project_configuration
+
+            test_project_path = test_project[:path]
+            test_project_dir = File.dirname(test_project_path)
+            test_rel_output_dir = test_project[:configs][test_project_configuration][:output_path]
+            test_full_output_dir = File.join(test_project_dir, test_rel_output_dir)
+
+            test_full_output_path = export_artifact(test_project[:assembly_name], test_full_output_dir, '.dll')
+
+            (outputs_hash[project[:id]][:uitests] ||= []) << test_full_output_path
+          end
         else
           next
       end
@@ -241,13 +312,14 @@ class Analyzer
 
   def analyze_project(project)
     project_config = nil
+    referred_project_paths = nil
 
     File.open(project[:path]).each do |line|
       # Guid
       match = line.match(REGEX_PROJECT_GUID)
       if match != nil && match.captures != nil && match.captures.count == 1
-        unless project[:id].casecmp(match.captures[0])
-          raise "Invalid id found in project: #{project[:path]}"
+        if project[:id].casecmp(match.captures[0]) != 0
+          next
         end
       end
 
@@ -310,6 +382,32 @@ class Analyzer
 
       match = line.match(REGEX_PROJECT_REFERENCE_XAMARIN_UITEST)
       project[:api] = 'uitest' if match != nil
+
+      # Referred projects
+      match = line.match(REGEX_PROJECT_PROJECT_REFERENCE_END)
+      referred_project_paths = nil if match
+
+      if referred_project_paths != nil
+        match = line.match(REGEX_PROJECT_REFERRED_PROJECT_ID)
+        if match != nil && match.captures != nil && match.captures.count == 1
+          (project[:referred_project_ids] ||= []) << match.captures[0]
+        end
+      end
+
+      match = line.match(REGEX_PROJECT_PROJECT_REFERENCE_START)
+      if match != nil && match.captures != nil && match.captures.count == 1
+        referred_project_paths = match.captures[0]
+      end
+    end
+
+    # Joint uitest project to projects
+    if project[:api].eql? 'uitest'
+      project[:referred_project_ids].each do |project_id|
+        referred_project = project_with_id(project_id)
+        next unless referred_project
+
+        (referred_project[:uitest_projects] ||= []) << project[:id]
+      end
     end
   end
 
@@ -317,7 +415,7 @@ class Analyzer
     return nil unless @solution
 
     @solution[:projects].each do |project|
-      return project if project[:id].eql? id
+      return project if project[:id].casecmp(id) == 0
     end
   end
 
