@@ -277,6 +277,7 @@ class Analyzer
 
   def analyze_project(project)
     project_config = nil
+    referred_project_paths = nil
 
     File.open(project[:path]).each do |line|
       # Guid
