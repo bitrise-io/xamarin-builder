@@ -24,7 +24,9 @@ REGEX_SOLUTION_GLOBAL_CONFIG_END = /EndGlobalSection/i
 REGEX_PROJECT_GUID = /<ProjectGuid>(?<project_id>.*)<\/ProjectGuid>/i
 REGEX_PROJECT_OUTPUT_TYPE = /<OutputType>(?<output_type>.*)<\/OutputType>/i
 REGEX_PROJECT_ASSEMBLY_NAME = /<AssemblyName>(?<assembly_name>.*)<\/AssemblyName>/i
-REGEX_PROJECT_MTOUCH_ARCH = /<MtouchArch>(?<arch>.*)<\/MtouchArch>/
+REGEX_PROJECT_ANDROID_MANIFEST = /<AndroidManifest>(?<manifest_path>.*)<\/AndroidManifest>/i
+REGEX_PROJECT_ANDROID_PACKAGE_NAME = /<manifest.*package=\"(?<package_name>.*)\">/i
+REGEX_PROJECT_MTOUCH_ARCH = /<MtouchArch>(?<arch>.*)<\/MtouchArch>/i
 REGEX_PROJECT_PROPERTY_GROUP_WITH_CONDITION = /<PropertyGroup Condition=\" '\$\(Configuration\)\|\$\(Platform\)' == '(?<config>(\w|\s)*)\|(?<platform>(\w|\s)*)' \">/i
 REGEX_PROJECT_PROPERTY_GROUP_END = /<\/PropertyGroup>/i
 REGEX_PROJECT_OUTPUT_PATH = /<OutputPath>(?<output_path>.*)<\/OutputPath>/i
@@ -108,11 +110,11 @@ class Analyzer
           ].join(' ')
 
           build_commands << [
-            'xbuild',
-            sign_android ? '/t:SignAndroidPackage' : '/t:PackageForAndroid',
-            "/p:Configuration=#{project_configuration.split('|').first}",
-            "/p:Platform=#{project_configuration.split('|').last}",
-            project[:path]
+              'xbuild',
+              sign_android ? '/t:SignAndroidPackage' : '/t:PackageForAndroid',
+              "/p:Configuration=#{project_configuration.split('|').first}",
+              "/p:Platform=#{project_configuration.split('|').last}",
+              project[:path]
           ].join(' ')
         else
           next
@@ -213,7 +215,10 @@ class Analyzer
           rel_output_dir = project[:configs][project_configuration][:output_path]
           full_output_dir = File.join(project_dir, rel_output_dir)
 
-          full_output_path = export_artifact('*', full_output_dir, '.apk')
+          package_name = android_package_name(project[:android_manifest_path])
+
+          full_output_path = export_artifact(package_name, full_output_dir, '.apk') if package_name
+          full_output_path = export_artifact('*', full_output_dir, '.apk') unless full_output_path
 
           next unless full_output_path
 
@@ -247,6 +252,17 @@ class Analyzer
   end
 
   private
+
+  def android_package_name(manifest_path)
+    File.open(manifest_path).each do |line|
+      match = line.match(REGEX_PROJECT_ANDROID_PACKAGE_NAME)
+      if match != nil && match.captures != nil && match.captures.count == 1
+        return match.captures[0]
+      end
+    end
+
+    nil
+  end
 
   def type
     return SOLUTION if @path.downcase.end_with? SLN_EXT
@@ -338,6 +354,13 @@ class Analyzer
       match = line.match(REGEX_PROJECT_ASSEMBLY_NAME)
       if match != nil && match.captures != nil && match.captures.count == 1
         project[:assembly_name] = match.captures[0]
+      end
+
+      # manifest path
+      match = line.match(REGEX_PROJECT_ANDROID_MANIFEST)
+      if match != nil && match.captures != nil && match.captures.count == 1
+        project_dir = File.dirname(project[:path])
+        project[:android_manifest_path] = File.join([project_dir].concat(match.captures[0].split('\\')))
       end
 
       # android application
