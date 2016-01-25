@@ -70,8 +70,7 @@ class Analyzer
         MDTOOL_PATH,
         'build',
         "\"-c:#{config}\"",
-        @solution[:path],
-        "-p:#{project[:name]}"
+        @solution[:path]
     ].join(' ')
   end
 
