@@ -88,7 +88,7 @@ class Analyzer
           build_commands << [
               MDTOOL_PATH,
               generate_archive ? 'archive' : 'build',
-              "\"-c:#{configuration}\"",
+              "\"-c:#{project_configuration}\"",
               @solution[:path],
               "-p:#{project[:name]}"
           ].join(' ')
@@ -104,7 +104,7 @@ class Analyzer
           build_commands << [
               MDTOOL_PATH,
               'build',
-              "\"-c:#{configuration}\"",
+              "\"-c:#{project_configuration}\"",
               @solution[:path],
               "-p:#{project[:name]}"
           ].join(' ')
@@ -141,7 +141,7 @@ class Analyzer
       build_command = [
           MDTOOL_PATH,
           'build',
-          "\"-c:#{configuration}\"",
+          "\"-c:#{project_configuration}\"",
           @solution[:path],
       ].join(' ')
     end
