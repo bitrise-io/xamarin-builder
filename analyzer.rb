@@ -65,6 +65,16 @@ class Analyzer
     puts @solution
   end
 
+  def build_solution_command(config)
+    [
+        MDTOOL_PATH,
+        'build',
+        "\"-c:#{config}\"",
+        @solution[:path],
+        "-p:#{project[:name]}"
+    ].join(' ')
+  end
+
   def build_commands(config, platform, project_type_filter)
     configuration = "#{config}|#{platform}"
     build_commands = []
@@ -78,7 +88,7 @@ class Analyzer
           next unless project_type_filter.include? 'ios'
           next unless project[:output_type].eql?('exe')
           unless project_configuration
-            puts "Skipping: No configuration mapping found for (#{configuration}) in project #{project[:name]}" 
+            puts "Skipping: No configuration mapping found for (#{configuration}) in project #{project[:name]}"
             next
           end
 
@@ -124,7 +134,7 @@ class Analyzer
     build_commands
   end
 
-  def test_commands(config, platform)
+  def build_test_commands(config, platform)
     configuration = "#{config}|#{platform}"
     build_command = nil
 
@@ -185,25 +195,25 @@ class Analyzer
             next unless full_output_path
 
             outputs_hash[project[:id]][:app] = full_output_path
+          end
 
-            # Search for test dll
-            next unless project[:uitest_projects]
+          # Search for test dll
+          next unless project[:uitest_projects]
 
-            project[:uitest_projects].each do |test_project_id|
-              test_project = project_with_id(test_project_id)
-              test_project_configuration = test_project[:mappings][configuration]
+          project[:uitest_projects].each do |test_project_id|
+            test_project = project_with_id(test_project_id)
+            test_project_configuration = test_project[:mappings][configuration]
 
-              next unless test_project_configuration
+            next unless test_project_configuration
 
-              test_project_path = test_project[:path]
-              test_project_dir = File.dirname(test_project_path)
-              test_rel_output_dir = test_project[:configs][test_project_configuration][:output_path]
-              test_full_output_dir = File.join(test_project_dir, test_rel_output_dir)
+            test_project_path = test_project[:path]
+            test_project_dir = File.dirname(test_project_path)
+            test_rel_output_dir = test_project[:configs][test_project_configuration][:output_path]
+            test_full_output_dir = File.join(test_project_dir, test_rel_output_dir)
 
-              test_full_output_path = export_artifact(test_project[:assembly_name], test_full_output_dir, '.dll')
+            test_full_output_path = export_artifact(test_project[:assembly_name], test_full_output_dir, '.dll')
 
-              (outputs_hash[project[:id]][:uitests] ||= []) << test_full_output_path
-            end
+            (outputs_hash[project[:id]][:uitests] ||= []) << test_full_output_path
           end
         when 'android'
           next unless project_type_filter.include? 'android'
@@ -217,6 +227,7 @@ class Analyzer
 
           package_name = android_package_name(project[:android_manifest_path])
 
+          full_output_path = nil
           full_output_path = export_artifact(package_name, full_output_dir, '.apk') if package_name
           full_output_path = export_artifact('*', full_output_dir, '.apk') unless full_output_path
 
