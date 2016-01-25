@@ -31,11 +31,26 @@ class Builder
     @generated_files = analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
   end
 
+  def build_solution
+    analyzer = Analyzer.new
+    analyzer.analyze(@path)
+
+    build_command = analyzer.build_solution_command(@configuration)
+
+    puts
+    puts "\e[32m#{build_command}\e[0m"
+    puts
+
+    raise 'Build failed' unless system(build_command)
+
+    @generated_files = analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
+  end
+
   def build_test
     analyzer = Analyzer.new
     analyzer.analyze(@path)
 
-    test_command = analyzer.test_commands(@configuration, @platform)
+    test_command = analyzer.build_test_commands(@configuration, @platform)
 
     puts
     puts "\e[32m#{test_command}\e[0m"
