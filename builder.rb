@@ -20,6 +20,7 @@ class Builder
 
     build_commands = analyzer.build_commands(@configuration, @platform, @project_type_filter)
 
+    raise 'Build failed: No project found to build' if build_commands.empty?
     build_commands.each do |build_command|
       puts
       puts "\e[32m#{build_command}\e[0m"
