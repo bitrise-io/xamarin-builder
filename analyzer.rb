@@ -91,17 +91,6 @@ class Analyzer
             next
           end
 
-          puts configuration
-          puts project[:mappings]
-          puts project[:mappings][configuration]
-          puts project_configuration
-          puts "--"
-          puts project[:configs]
-          puts "-"
-          project[:configs][project_configuration]
-          puts "-"
-          project[:configs][project_configuration][:mtouch_arch]
-          puts "-"
           archs = project[:configs][project_configuration][:mtouch_arch]
           generate_archive = archs && archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
 
