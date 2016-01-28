@@ -152,6 +152,7 @@ class Analyzer
           'build',
           "\"-c:#{project_configuration}\"",
           @solution[:path],
+          "-p:#{project[:name]}"
       ].join(' ')
     end
 
