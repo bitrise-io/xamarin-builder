@@ -315,7 +315,9 @@ class Analyzer
       if parse_solution_configs
         match = line.match(REGEX_SOLUTION_GLOBAL_SOLUTION_CONFIG)
         if match != nil && match.captures != nil && match.captures.count == 2
-          (@solution[:configs] ||= []) << "#{match.captures[0]}|#{match.captures[1].delete(' ')}"
+          configuration =  match.captures[0].strip.delete(' ')
+          platform = match.captures[1].strip.delete(' ')
+          (@solution[:configs] ||= []) << "#{configuration}|#{platform}"
         end
       end
 
@@ -330,9 +332,13 @@ class Analyzer
         match = line.match(REGEX_SOLUTION_GLOBAL_PROJECT_CONFIG)
         if match != nil && match.captures != nil && match.captures.count == 5
           project_id = match.captures[0]
+          solution_configuration = match.captures[1].strip.delete(' ')
+          solution_platform = match.captures[2].strip.delete(' ')
+          project_configuration = match.captures[3].strip.delete(' ')
+          project_platform = match.captures[4].strip.delete(' ')
 
           project = project_with_id(project_id)
-          (project[:mappings] ||= {})["#{match.captures[1]}|#{match.captures[2].delete(' ')}"] = "#{match.captures[3]}|#{match.captures[4].strip.delete(' ')}"
+          (project[:mappings] ||= {})["#{solution_configuration}|#{solution_platform}"] = "#{project_configuration}|#{project_platform}"
         end
       end
 
