@@ -9,8 +9,8 @@ class Builder
     fail 'No platform provided' if platform.to_s == ''
 
     @path = path
-    @configuration = configuration
-    @platform = platform
+    @configuration = configuration.delete(' ')
+    @platform = platform.delete(' ')
     @project_type_filter = project_type_filter || ['ios', 'android']
   end
 
