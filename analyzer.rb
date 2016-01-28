@@ -111,14 +111,6 @@ class Analyzer
           sign_android = project[:configs][project_configuration][:sign_android]
 
           build_commands << [
-              MDTOOL_PATH,
-              'build',
-              "\"-c:#{project_configuration}\"",
-              @solution[:path],
-              "-p:#{project[:name]}"
-          ].join(' ')
-
-          build_commands << [
               'xbuild',
               sign_android ? '/t:SignAndroidPackage' : '/t:PackageForAndroid',
               "/p:Configuration=#{project_configuration.split('|').first}",
