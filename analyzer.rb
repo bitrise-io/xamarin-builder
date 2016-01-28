@@ -405,7 +405,9 @@ class Analyzer
 
       match = line.match(REGEX_PROJECT_PROPERTY_GROUP_WITH_CONDITION)
       if match != nil && match.captures != nil && match.captures.count == 2
-        project_config = "#{match.captures[0]}|#{match.captures[1].delete(' ')}"
+        configuration = match.captures[0].strip.delete(' ')
+        platform = match.captures[1].strip.delete(' ')
+        project_config = "#{configuration}|#{platform}"
 
         (project[:configs] ||= {})[project_config] = {}
       end
