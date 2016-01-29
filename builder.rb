@@ -9,8 +9,8 @@ class Builder
     fail 'No platform provided' if platform.to_s == ''
 
     @path = path
-    @configuration = configuration.delete(' ')
-    @platform = platform.delete(' ')
+    @configuration = configuration
+    @platform = platform
     @project_type_filter = project_type_filter || ['ios', 'android']
   end
 
@@ -20,13 +20,13 @@ class Builder
 
     build_commands = analyzer.build_commands(@configuration, @platform, @project_type_filter)
 
-    raise 'Build failed: No project found to build' if build_commands.empty?
+    raise 'No project found to build' if build_commands.empty?
     build_commands.each do |build_command|
       puts
       puts "\e[32m#{build_command}\e[0m"
       puts
 
-      raise 'Build failed' unless system(build_command)
+      raise 'build command failed' unless system(build_command)
     end
 
     @generated_files = analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
@@ -42,7 +42,7 @@ class Builder
     puts "\e[32m#{build_command}\e[0m"
     puts
 
-    raise 'Build failed' unless system(build_command)
+    raise 'build command failed' unless system(build_command)
 
     @generated_files = analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
   end
@@ -57,7 +57,7 @@ class Builder
     puts "\e[32m#{test_command}\e[0m"
     puts
 
-    raise 'Build failed' unless system(test_command)
+    raise 'build command failed' unless system(test_command)
 
     @generated_files = analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
   end
