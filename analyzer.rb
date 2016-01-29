@@ -98,8 +98,8 @@ class Analyzer
               MDTOOL_PATH,
               generate_archive ? 'archive' : 'build',
               "\"-c:#{project_configuration}\"",
-              @solution[:path],
-              "-p:#{project[:name]}"
+              "\"#{@solution[:path]}\"",
+              "\"-p:#{project[:name]}\""
           ].join(' ')
         when 'android'
           next unless project_type_filter.include? 'android'
@@ -115,7 +115,7 @@ class Analyzer
               sign_android ? '/t:SignAndroidPackage' : '/t:PackageForAndroid',
               "/p:Configuration=\"#{project_configuration.split('|').first}\"",
               "/p:Platform=\"#{project_configuration.split('|').last}\"",
-              project[:path]
+              "\"#{project[:path]}\""
           ].join(' ')
         else
           next
@@ -143,8 +143,8 @@ class Analyzer
           MDTOOL_PATH,
           'build',
           "\"-c:#{project_configuration}\"",
-          @solution[:path],
-          "-p:#{project[:name]}"
+          "\"#{@solution[:path]}\"",
+          "\"-p:#{project[:name]}\""
       ].join(' ')
     end
 
@@ -194,6 +194,8 @@ class Analyzer
 
           project[:uitest_projects].each do |test_project_id|
             test_project = project_with_id(test_project_id)
+            next unless test_project
+
             test_project_configuration = test_project[:mappings][configuration]
 
             next unless test_project_configuration
@@ -233,6 +235,8 @@ class Analyzer
 
           project[:uitest_projects].each do |test_project_id|
             test_project = project_with_id(test_project_id)
+            next unless test_project
+
             test_project_configuration = test_project[:mappings][configuration]
 
             next unless test_project_configuration
@@ -332,6 +336,8 @@ class Analyzer
           project_platform = "AnyCPU" if project_platform.eql? 'Any CPU' # Fix MS bug
 
           project = project_with_id(project_id)
+          next unless project
+
           (project[:mappings] ||= {})["#{solution_configuration}|#{solution_platform}"] = "#{project_configuration}|#{project_platform}"
         end
       end
@@ -457,6 +463,7 @@ class Analyzer
     @solution[:projects].each do |project|
       return project if project[:id].casecmp(id) == 0
     end
+    return nil
   end
 
   def export_artifact(assembly_name, output_path, extension)
