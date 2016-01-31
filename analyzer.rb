@@ -105,14 +105,15 @@ class Analyzer
 
           sign_android = project[:configs][project_configuration][:sign_android]
 
-          build_commands << [
+          build_command = [
               'xbuild',
               sign_android ? '/t:SignAndroidPackage' : '/t:PackageForAndroid',
               "/p:Configuration=\"#{project_configuration.split('|').first}\""
           ]
-          build_commands << project_configuration.split('|').last unless project_configuration.split('|').last.eql?("AnyCPU")
-          build_commands << "\"#{project[:path]}\""
-          build_commands.join(' ')
+          build_command << project_configuration.split('|').last unless project_configuration.split('|').last.eql?("AnyCPU")
+          build_command << "\"#{project[:path]}\""
+
+          build_commands << build_command.join(' ')
         else
           next
       end
