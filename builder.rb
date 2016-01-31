@@ -23,7 +23,7 @@ class Builder
     raise 'No project found to build' if build_commands.empty?
     build_commands.each do |build_command|
       puts
-      puts "\e[32m#{build_command}\e[0m"
+      puts "\e[34m#{build_command}\e[0m"
       puts
 
       raise 'build command failed' unless system(build_command)
@@ -39,7 +39,7 @@ class Builder
     build_command = analyzer.build_solution_command(@configuration)
 
     puts
-    puts "\e[32m#{build_command}\e[0m"
+    puts "\e[34m#{build_command}\e[0m"
     puts
 
     raise 'build command failed' unless system(build_command)
@@ -54,7 +54,7 @@ class Builder
     test_command = analyzer.build_test_commands(@configuration, @platform)
 
     puts
-    puts "\e[32m#{test_command}\e[0m"
+    puts "\e[34m#{test_command}\e[0m"
     puts
 
     raise 'build command failed' unless system(test_command)
