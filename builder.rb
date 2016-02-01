@@ -35,7 +35,7 @@ class Builder
     analyzer = Analyzer.new
     analyzer.analyze(@path)
 
-    build_command = analyzer.build_solution_command(@configuration)
+    build_command = analyzer.build_solution_command(@configuration, @platform)
 
     puts
     puts "\e[34m#{build_command}\e[0m"

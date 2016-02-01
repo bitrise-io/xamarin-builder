@@ -65,11 +65,11 @@ class Analyzer
     puts @solution
   end
 
-  def build_solution_command(config)
+  def build_solution_command(config, platform)
     [
         MDTOOL_PATH,
         'build',
-        "\"-c:#{config}\"",
+        "\"-c:#{config}|#{platform}\"",
         @solution[:path]
     ].join(' ')
   end
