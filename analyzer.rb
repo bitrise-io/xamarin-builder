@@ -49,14 +49,16 @@ class Analyzer
     @path = path
 
     case type
-      when SOLUTION
-        analyze_solution(@path)
-      when PROJECT
-        puts
-        puts "\e[32mYou are trying to build a project file at path #{@path}\e[0m"
-        puts "You should specify the solution path and set the type of the project you would like to build: [iOS|Android]"
-        puts
-        raise "Unsupported type detected"
+    when SOLUTION
+      analyze_solution(@path)
+    when PROJECT
+      puts
+      puts "\e[32mYou are trying to build a project file at path #{@path}\e[0m"
+      puts "You should specify the solution path and set the type of the project you would like to build: [iOS|Android]"
+      puts
+      raise "Unsupported type detected"
+    else
+      raise "Unsupported type detected"
     end
 
     @solution[:projects].each do |project|
