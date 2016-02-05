@@ -27,7 +27,7 @@ REGEX_PROJECT_ASSEMBLY_NAME = /<AssemblyName>(?<assembly_name>.*)<\/AssemblyName
 REGEX_PROJECT_ANDROID_MANIFEST = /<AndroidManifest>(?<manifest_path>.*)<\/AndroidManifest>/i
 REGEX_PROJECT_ANDROID_PACKAGE_NAME = /<manifest.*package=\"(?<package_name>.*)\">/i
 REGEX_PROJECT_MTOUCH_ARCH = /<MtouchArch>(?<arch>.*)<\/MtouchArch>/i
-REGEX_PROJECT_PROPERTY_GROUP_WITH_CONDITION = /<PropertyGroup Condition=\" '\$\(Configuration\)\|\$\(Platform\)' == '(?<config>.*)\|(?<platform>.*)' \">/i
+REGEX_PROJECT_PROPERTY_GROUP_WITH_CONDITION = /<PropertyGroup Condition=\"\s*'\$\(Configuration\)\|\$\(Platform\)'\s*==\s*'(?<config>.*)\|(?<platform>.*)'\s*\">/i
 REGEX_PROJECT_PROPERTY_GROUP_END = /<\/PropertyGroup>/i
 REGEX_PROJECT_OUTPUT_PATH = /<OutputPath>(?<output_path>.*)<\/OutputPath>/i
 REGEX_PROJECT_IPA_PACKAGE = /<IpaPackageName>/i
