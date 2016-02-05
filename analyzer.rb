@@ -418,7 +418,7 @@ class Analyzer
     end
 
     # Joint uitest project to projects
-    if project[:api].eql? 'uitest'
+    if project[:api].eql?('uitest') && !project[:referred_project_ids].nil?
       project[:referred_project_ids].each do |project_id|
         referred_project = project_with_id(project_id)
         next unless referred_project
