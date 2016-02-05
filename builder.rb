@@ -19,7 +19,6 @@ class Builder
     analyzer.analyze(@path)
 
     build_commands = analyzer.build_commands(@configuration, @platform, @project_type_filter)
-    puts build_commands
 
     raise 'No project found to build' if build_commands.empty?
     build_commands.each do |build_command|
