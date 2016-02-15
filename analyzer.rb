@@ -197,7 +197,7 @@ class Analyzer
         rel_output_dir = project[:configs][project_configuration][:output_path]
         full_output_dir = File.join(project_dir, rel_output_dir)
 
-        package_name = android_package_name(project[:android_manifest_path])
+        package_name = project[:android_manifest_path].nil? ? '*' : android_package_name(project[:android_manifest_path])
 
         full_output_path = nil
         full_output_path = export_artifact(package_name, full_output_dir, '.apk') if package_name
