@@ -19,10 +19,14 @@ class Builder
     analyzer.analyze(@path)
 
     build_commands = analyzer.build_commands(@configuration, @platform, @project_type_filter)
+    if build_commands.empty?
+      # No iOS or Android application found to build
+      # Switching to framework building
+      build_commands << analyzer.build_solution_command(@configuration, @platform)
+    end
 
-    raise 'No project found to build' if build_commands.empty?
     build_commands.each do |build_command|
-      puts
+      puts ""
       puts "\e[34m#{build_command}\e[0m"
       raise 'build command failed' unless system(build_command)
     end
@@ -49,15 +53,31 @@ class Builder
     analyzer = Analyzer.new
     analyzer.analyze(@path)
 
-    test_command = analyzer.build_test_commands(@configuration, @platform)
+    test_commands = analyzer.build_test_commands(@configuration, @platform, @project_type_filter)
 
-    puts
-    puts "\e[34m#{test_command}\e[0m"
-    puts
-
-    raise 'build command failed' unless system(test_command)
+    test_commands.each do |test_command|
+      puts
+      puts "\e[34m#{test_command}\e[0m"
+      puts
+      raise 'Failed' unless system(test_command)
+    end
 
     @generated_files = analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
+  end
+
+  def run_nunit_tests(options = nil)
+    analyzer = Analyzer.new
+    analyzer.analyze(@path)
+
+    test_commands = analyzer.nunit_test_commands(@configuration, @platform, options)
+    puts test_commands
+
+    raise 'No projects found to test' if test_commands.empty?
+    test_commands.each_with_index do |test_command, idx|
+      puts
+      puts "\e[34m#{test_command}\e[0m"
+      raise 'Test failed' unless system(test_command)
+    end
   end
 
   def generated_files

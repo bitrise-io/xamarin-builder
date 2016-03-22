@@ -36,7 +36,8 @@ REGEX_PROJECT_ANDROID_APPLICATION= /<AndroidApplication>True<\/AndroidApplicatio
 REGEX_PROJECT_SIGN_ANDROID = /<AndroidKeyStore>True<\/AndroidKeyStore>/i
 REGEX_PROJECT_REFERENCE_XAMARIN_IOS = /Include="Xamarin.iOS"/i
 REGEX_PROJECT_REFERENCE_XAMARIN_ANDROID = /Include="Mono.Android"/i
-REGEX_PROJECT_REFERENCE_XAMARIN_UITEST = /Include="Xamarin.UITest"/i
+REGEX_PROJECT_REFERENCE_XAMARIN_UITEST = /Include="Xamarin.UITest/i
+REGEX_PROJECT_REFERENCE_NUNIT_FRAMEWORK = /Include="nunit.framework/i
 
 REGEX_PROJECT_PROJECT_REFERENCE_START = /<ProjectReference Include="(?<project_path>.*)">/i
 REGEX_PROJECT_PROJECT_REFERENCE_END = /<\/ProjectReference>/i
@@ -73,15 +74,10 @@ class Analyzer
   end
 
   def build_solution_command(config, platform)
-    [
-        MDTOOL_PATH,
-        'build',
-        "\"-c:#{config}|#{platform}\"",
-        @solution[:path]
-    ].join(' ')
+    mdtool_build_command('build', [config, platform].join('|'), @solution[:path]).join(' ')
   end
 
-  def build_commands(config, platform, project_type_filter)
+  def build_commands(config, platform, project_type_filter, id_filters = nil)
     configuration = "#{config}|#{platform}"
     build_commands = []
 
@@ -89,35 +85,38 @@ class Analyzer
       next unless project[:mappings]
       project_configuration = project[:mappings][configuration]
 
+      unless id_filters.nil?
+        next unless id_filters.include? project[:id]
+      end
+
       case project[:api]
         when 'ios'
           next unless project_type_filter.include? 'ios'
           next unless project[:output_type].eql?('exe')
           next unless project_configuration
 
-          archs = project[:configs][project_configuration][:mtouch_arch]
-          generate_archive = archs && archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
+          generate_archive = should_generate_archives?(project[:configs][project_configuration][:mtouch_arch])
 
-          build_commands << [
-              MDTOOL_PATH,
-              generate_archive ? 'archive' : 'build',
-              "\"-c:#{mdtool_configuration(project_configuration)}\"",
-              "\"#{@solution[:path]}\"",
-              "\"-p:#{project[:name]}\""
-          ].join(' ')
+          build_commands << mdtool_build_command(
+            generate_archive ? 'archive' : 'build',
+            project_configuration,
+            @solution[:path],
+            project[:name]
+          ).join(' ')
         when 'android'
           next unless project_type_filter.include? 'android'
           next unless project[:android_application]
           next unless project_configuration
 
+          project_config, project_platform = project_configuration.split('|')
           sign_android = project[:configs][project_configuration][:sign_android]
 
           build_command = [
               'xbuild',
               sign_android ? '/t:SignAndroidPackage' : '/t:PackageForAndroid',
-              "/p:Configuration=\"#{project_configuration.split('|').first}\""
+              "/p:Configuration=\"#{project_config}\""
           ]
-          build_command << "/p:Platform=\"#{project_configuration.split('|').last}\"" unless project_configuration.split('|').last.eql?("AnyCPU")
+          build_command << "/p:Platform=\"#{project_platform}\"" unless project_platform.eql?("AnyCPU")
           build_command << "\"#{project[:path]}\""
           build_command << "/verbosity:minimal"
           build_command << "/nologo"
@@ -131,27 +130,67 @@ class Analyzer
     build_commands
   end
 
-  def build_test_commands(config, platform)
+  def build_test_commands(config, platform, project_type_filter)
     configuration = "#{config}|#{platform}"
-    build_command = nil
+    build_commands = []
+
+    @solution[:projects].each do |project|
+      next unless project[:mappings]
+
+      project_configuration = project[:mappings][configuration]
+      next unless project_configuration
+
+      # Check whether it is a UITest project
+      next if project[:tests].nil? || !project[:tests].include?('uitest')
+
+      # Checked referenced projects if it includes
+      # the correct project type [iOS|Android]
+      referred_projects = []
+      project[:referred_project_ids].each do |id|
+        referred_project = project_with_id(id)
+        referred_projects << referred_project if project_type_filter.include? referred_project[:api]
+      end
+
+      next if referred_projects.empty?
+
+      referred_projects.each do |referred_project|
+        command = build_commands(config, platform, project_type_filter, referred_project[:id])
+        build_commands.concat(command) unless command.nil?  
+      end
+
+      build_commands << mdtool_build_command('build', project_configuration, @solution[:path], project[:name]).join(' ')
+    end
+
+    build_commands
+  end
+
+  def nunit_test_commands(config, platform, options)
+    configuration = "#{config}|#{platform}"
+    build_commands = []
+
+    nunit_path = ENV['NUNIT_PATH']
+    nunit_console_path = File.join(nunit_path, 'nunit3-console.exe')
+    raise "nunit3-console.exe not found at path: #{nunit_console_path}" unless File.exists?(nunit_console_path)
 
     @solution[:projects].each do |project|
       next unless project[:mappings]
       project_configuration = project[:mappings][configuration]
+      project_config = project_configuration.split('|').first
 
-      next unless project[:api] == 'uitest'
+      next if project[:tests].nil? || !project[:tests].include?('nunit')
       next unless project_configuration
 
-      build_command = [
-          MDTOOL_PATH,
-          'build',
-          "\"-c:#{mdtool_configuration(project_configuration)}\"",
-          "\"#{@solution[:path]}\"",
-          "\"-p:#{project[:name]}\""
-      ].join(' ')
+      command = [
+          "mono",
+          "\"#{nunit_console_path}\"",
+          "\"#{project[:path]}\"",
+          "\"/config:#{project_config}\""
+      ]
+      command << options unless options.nil?
+      build_commands << command.join(' ')
     end
 
-    build_command
+    build_commands
   end
 
   def collect_generated_files(config, platform, project_type_filter)
@@ -169,8 +208,7 @@ class Analyzer
         next unless project[:output_type].eql?('exe')
         next unless project_configuration
 
-        archs = project[:configs][project_configuration][:mtouch_arch]
-        generate_archive = archs && archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
+        generate_archive = should_generate_archives?(project[:configs][project_configuration][:mtouch_arch])
 
         project_path = project[:path]
         project_dir = File.dirname(project_path)
@@ -400,7 +438,10 @@ class Analyzer
       project[:api] = 'android' if match != nil
 
       match = line.match(REGEX_PROJECT_REFERENCE_XAMARIN_UITEST)
-      project[:api] = 'uitest' if match != nil
+      (project[:tests] ||= []) << 'uitest' if match != nil if match != nil
+
+      match = line.match(REGEX_PROJECT_REFERENCE_NUNIT_FRAMEWORK)
+      (project[:tests] ||= []) << 'nunit' if match != nil
 
       # Referred projects
       match = line.match(REGEX_PROJECT_PROJECT_REFERENCE_END)
@@ -420,7 +461,7 @@ class Analyzer
     end
 
     # Joint uitest project to projects
-    if project[:api].eql?('uitest') && !project[:referred_project_ids].nil?
+    if !project[:tests].nil? && project[:tests].include?('uitest') && !project[:referred_project_ids].nil?
       project[:referred_project_ids].each do |project_id|
         referred_project = project_with_id(project_id)
         next unless referred_project
@@ -431,7 +472,32 @@ class Analyzer
   end
 
   def mdtool_configuration(project_configuration)
-     project_configuration.split('|').last.eql?("AnyCPU") ? project_configuration.split('|').first : project_configuration
+    config, platform = project_configuration.split('|')
+    (mdtool_config ||= [] ) << config
+
+    if !platform.eql?("AnyCPU") && !platform.eql?("Any CPU")
+      mdtool_config << platform
+    end
+
+    mdtool_config.join('|')
+  end
+
+  def mdtool_build_command(action, project_configuration, solution, project = nil)
+    raise "Undefined mdtool action found (#{action})" unless ['build', 'archive'].include? action
+
+    command = [
+      MDTOOL_PATH,
+      action,
+      "\"-c:#{mdtool_configuration(project_configuration)}\"",
+      "\"#{solution}\""
+    ]
+    command << "\"-p:#{project}\"" if project
+    return command
+  end
+
+  def should_generate_archives?(architectures)
+    return true if architectures.nil? || architectures.empty? # default is armv7
+    architectures && architectures.select { |x| x.downcase.start_with? 'arm' }.count == architectures.count
   end
 
   def project_with_id(id)
