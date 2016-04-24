@@ -1,5 +1,5 @@
 require_relative './analyzer'
-require_relative './api'
+require_relative './common_constants'
 
 class Builder
   def initialize(path, configuration, platform, project_type_filter=nil)
