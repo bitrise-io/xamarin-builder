@@ -256,6 +256,7 @@ class Analyzer
 
         test_project_configuration = test_project[:mappings][configuration]
         next unless test_project_configuration
+        next unless test_project[:configs][test_project_configuration]
 
         test_project_path = test_project[:path]
         test_project_dir = File.dirname(test_project_path)
