@@ -29,7 +29,7 @@ class Builder
     build_commands.each do |build_command|
       puts ""
       puts "\e[34m#{build_command}\e[0m"
-      raise 'build command failed' unless system(build_command)
+      raise 'build command failed' unless system(build_command.join(' '))
     end
 
     @generated_files = @analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
@@ -42,7 +42,7 @@ class Builder
     puts "\e[34m#{build_command}\e[0m"
     puts
 
-    raise 'build command failed' unless system(build_command)
+    raise 'build command failed' unless system(build_command.join(' '))
 
     @generated_files = @analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
   end
@@ -54,7 +54,7 @@ class Builder
       puts
       puts "\e[34m#{test_command}\e[0m"
       puts
-      raise 'Failed' unless system(test_command)
+      raise 'Failed' unless system(test_command.join(' '))
     end
 
     @generated_files = @analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
@@ -68,7 +68,7 @@ class Builder
     test_commands.each_with_index do |test_command, idx|
       puts
       puts "\e[34m#{test_command}\e[0m"
-      raise 'Test failed' unless system(test_command)
+      raise 'Test failed' unless system(test_command.join(' '))
     end
   end
 

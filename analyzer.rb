@@ -67,6 +67,10 @@ class Analyzer
     android: "EFBA0AD7-5A72-4C68-AF49-83D382785DCF"
   }
 
+  class << self
+    attr_accessor :project_type_guids
+  end
+
   def analyze(path)
     @path = path
 
@@ -76,10 +80,8 @@ class Analyzer
     when PROJECT
       puts
       puts "\e[32mYou are trying to build a project file at path #{@path}\e[0m"
-      puts "You should specify the solution path and set the type of the project you would like to build: [iOS|Android]"
+      puts "You should specify the solution path and set the type of the project you would like to build: [iOS|Android|Mac]"
       puts
-      raise "Unsupported type detected"
-    else
       raise "Unsupported type detected"
     end
 
@@ -145,7 +147,7 @@ class Analyzer
           build_command << "/verbosity:minimal"
           build_command << "/nologo"
 
-          build_commands << build_command.join(' ')
+          build_commands << build_command
         else
           next
       end
@@ -182,7 +184,7 @@ class Analyzer
         build_commands.concat(command) unless command.nil?  
       end
 
-      build_commands << mdtool_build_command('build', project_configuration, @solution[:path], project[:name]).join(' ')
+      build_commands << mdtool_build_command('build', project_configuration, @solution[:path], project[:name])
     end
 
     build_commands
@@ -211,7 +213,7 @@ class Analyzer
           "\"/config:#{project_config}\""
       ]
       command << options unless options.nil?
-      build_commands << command.join(' ')
+      build_commands << command
     end
 
     build_commands
@@ -393,7 +395,7 @@ class Analyzer
 
   def analyze_project(project)
     project_config = nil
-    referred_project_paths = nils
+    referred_project_paths = nil
 
     File.open(project[:path]).each do |line|
       # Guid
@@ -576,14 +578,14 @@ class Analyzer
     latest_archive
   end
 
-  def identify_project_api(project)
-    if project[:type_guids].include? Analyzer.project_type_guids[:ios]
+  def identify_project_api(project_type_guids)
+    if project_type_guids.include? Analyzer.project_type_guids[:ios]
       Api::IOS
-    elsif project[:type_guids].include? Analyzer.project_type_guids[:android]
+    elsif project_type_guids.include? Analyzer.project_type_guids[:android]
       Api::ANDROID
-    elsif project[:type_guids].include? Analyzer.project_type_guids[:mac]
+    elsif project_type_guids.include? Analyzer.project_type_guids[:mac]
       Api::MAC
-    elsif project[:type_guids].include? Analyzer.project_type_guids[:tvos]
+    elsif project_type_guids.include? Analyzer.project_type_guids[:tvos]
       Api::TVOS
     end
   end
