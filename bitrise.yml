@@ -1,6 +1,10 @@
 format_version: 1.2.0
 default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
 
+app:
+  envs:
+  - XAMARIN_BUILDER_TEST_APP_URI: https://github.com/bitrise-io/xamarin-builder-test-app.git
+
 workflows:
   rspec:
     steps:
@@ -11,7 +15,7 @@ workflows:
             #!/bin/bash
             if [ ! -d "spec/fixtures" ]; then
               mkdir -p spec/fixtures
-              git clone https://github.com/bitrise-samples/xamarin-sample-app.git ./spec/fixtures
+              git clone $XAMARIN_BUILDER_TEST_APP_URI ./spec/fixtures
             fi
     - script:
         title: rspec
