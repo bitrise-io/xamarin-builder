@@ -20,3 +20,7 @@ Components/
 # NuGet Packages Directory
 packages/
 
+.bitrise*
+
+# rspec
+spec/fixtures

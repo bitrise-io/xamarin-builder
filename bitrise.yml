@@ -1,0 +1,21 @@
+format_version: 1.2.0
+default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
+
+workflows:
+  rspec:
+    steps:
+    - script:
+        title: init
+        inputs:
+        - content: |-
+            #!/bin/bash
+            if [ ! -d "spec/fixtures" ]; then
+              mkdir -p spec/fixtures
+              git clone https://github.com/bitrise-samples/xamarin-sample-app.git ./spec/fixtures
+            fi
+    - script:
+        title: rspec
+        inputs:
+        - content: |-
+            #!/bin/bash
+            rspec .
