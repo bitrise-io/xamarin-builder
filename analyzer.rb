@@ -97,7 +97,7 @@ class Analyzer
   end
 
   def build_solution_command(config, platform)
-    mdtool_build_command('build', [config, platform].join('|'), @solution[:path]).join(' ')
+    mdtool_build_command('build', [config, platform].join('|'), @solution[:path])
   end
 
   def build_commands(config, platform, project_type_filter, id_filters = nil)
@@ -159,15 +159,29 @@ class Analyzer
   def build_test_commands(config, platform, project_type_filter)
     configuration = "#{config}|#{platform}"
     build_commands = []
+    errors = []
 
     @solution[:projects].each do |project|
-      next unless project[:mappings]
+      # Check whether it is a UITest project
+      # Do this check as soon as possible,
+      # to allow collecting errors of building test command
+      # for relevant (UITest) projects.
+      next if project[:tests].nil? || !project[:tests].include?(Tests::UITEST)
+
+      test_project = project[:name]
+
+      unless project[:mappings]
+        errors << "#{test_project} not found in solution mappings"
+        errors << project.to_s
+        next
+      end
 
       project_configuration = project[:mappings][configuration]
-      next unless project_configuration
-
-      # Check whether it is a UITest project
-      next if project[:tests].nil? || !project[:tests].include?(Tests::UITEST)
+      unless project_configuration
+        errors << "no mapping found for #{test_project} with #{configuration}"
+        errors << project.to_s
+        next
+      end
 
       # Checked referenced projects if it includes
       # the correct project type [iOS|Android]
@@ -177,34 +191,60 @@ class Analyzer
         referred_projects << referred_project if project_type_filter.include? referred_project[:api]
       end
 
-      next if referred_projects.empty?
+      if referred_projects.empty?
+        errors << "#{test_project} does not refer to any #{project_type_filter} projects"
+        errors << project.to_s
+        next
+      end
 
       referred_projects.each do |referred_project|
         command = build_commands(config, platform, project_type_filter, referred_project[:id])
-        build_commands.concat(command) unless command.nil?  
+        build_commands.concat(command) unless command.nil?
       end
 
       build_commands << mdtool_build_command('build', project_configuration, @solution[:path], project[:name])
     end
 
-    build_commands
+    [build_commands, errors]
   end
 
   def nunit_test_commands(config, platform, options)
     configuration = "#{config}|#{platform}"
     build_commands = []
+    errors = []
 
     nunit_path = ENV['NUNIT_PATH']
     nunit_console_path = File.join(nunit_path, 'nunit3-console.exe')
     raise "nunit3-console.exe not found at path: #{nunit_console_path}" unless File.exists?(nunit_console_path)
 
     @solution[:projects].each do |project|
-      next unless project[:mappings]
-      project_configuration = project[:mappings][configuration]
-      project_config = project_configuration.split('|').first
-
+      # Check whether it is a Nunit project
+      # Do this check as soon as possible,
+      # to allow collecting errors of building test command
+      # for relevant (Nunit) projects.
       next if project[:tests].nil? || !project[:tests].include?(Api::NUNIT)
-      next unless project_configuration
+
+      test_project = project[:name]
+
+      unless project[:mappings]
+        errors << "#{test_project} not found in solution mappings"
+        errors << project.to_s
+        next
+      end
+
+      project_configuration = project[:mappings][configuration]
+      unless project_configuration
+        errors << "no mapping found for #{test_project} with #{configuration}"
+        errors << project.to_s
+        next
+      end
+
+      project_config = project_configuration.split('|').first
+      unless project_config
+        errors << "#{test_project} configuration #{project_configuration} is invalid"
+        errors << project.to_s
+        next
+      end
 
       command = [
           "mono",
@@ -216,7 +256,7 @@ class Analyzer
       build_commands << command
     end
 
-    build_commands
+    [build_commands, errors]
   end
 
   def collect_generated_files(config, platform, project_type_filter)

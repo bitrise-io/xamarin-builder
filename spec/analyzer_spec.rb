@@ -38,13 +38,21 @@ describe Analyzer do
   end
 
   describe 'build_solution_command' do
-    it 'it generates valid mdtool build command' do
+    before do
       solution_path = './spec/fixtures/XamarinSampleApp.sln'
 
-      analyzer = Analyzer.new
-      analyzer.analyze(solution_path)
+      @analyzer = Analyzer.new
+      @analyzer.analyze(solution_path)
+    end
 
-      expect(analyzer.build_solution_command('Release', 'iPhone')).to eq("\"/Applications/Xamarin Studio.app/Contents/MacOS/mdtool\" build \"-c:Release|iPhone\" \"./spec/fixtures/XamarinSampleApp.sln\"")
+    it 'it generates valid mdtool build command' do
+      command = @analyzer.build_solution_command('Release', 'iPhone')
+      expect(command).to include(
+        "\"/Applications/Xamarin Studio.app/Contents/MacOS/mdtool\"",
+        "build",
+        "\"-c:Release|iPhone\"",
+        "\"./spec/fixtures/XamarinSampleApp.sln\""
+      )
     end
   end
 
@@ -250,7 +258,7 @@ describe Analyzer do
       @analyzer = Analyzer.new
       @analyzer.analyze(solution_path)
 
-      commands = @analyzer.build_test_commands('Release', 'Any CPU', [Api::IOS, Api::ANDROID])
+      commands, = @analyzer.build_test_commands('Release', 'Any CPU', [Api::IOS, Api::ANDROID])
       expect(commands.count).to eq(4)
 
       expect(commands).to include([
