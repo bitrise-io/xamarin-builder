@@ -1,0 +1,9 @@
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Target Name="BeforeBuild">
+    <Message Text="This is the BeforeBuild target" Importance="normal"/>
+    <Exec Command="touch hey.txt" />
+  </Target>
+  <Target Name="AfterBuild">
+    <Message Text="This is the AfterBuild target" Importance="normal"/>
+  </Target>
+</Project>

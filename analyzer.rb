@@ -1,6 +1,8 @@
 require 'time'
 require 'pathname'
 
+require_relative 'common_constants'
+
 # -----------------------
 # --- Constants
 # -----------------------
@@ -8,12 +10,15 @@ require 'pathname'
 MDTOOL_PATH = "\"/Applications/Xamarin Studio.app/Contents/MacOS/mdtool\""
 
 CSPROJ_EXT = '.csproj'
+FSPROJ_EXT = '.fsproj'
 SHPROJ_EXT = '.shproj'
 SLN_EXT = '.sln'
 
 SOLUTION = 'solution'
 PROJECT = 'project'
 
+#
+# Solution regex
 REGEX_SOLUTION_PROJECTS = /Project\(\"(?<solution_id>[^\"]*)\"\) = \"(?<project_name>[^\"]*)\", \"(?<project_path>[^\"]*)\", \"(?<project_id>[^\"]*)\"/i
 REGEX_SOLUTION_GLOBAL_SOLUTION_CONFIG_START = /GlobalSection\(SolutionConfigurationPlatforms\) = preSolution/i
 REGEX_SOLUTION_GLOBAL_SOLUTION_CONFIG = /^\s*(?<config>[^|]*)\|(?<platform>[^|]*) =/i
@@ -21,31 +26,51 @@ REGEX_SOLUTION_GLOBAL_PROJECT_CONFIG_START = /GlobalSection\(ProjectConfiguratio
 REGEX_SOLUTION_GLOBAL_PROJECT_CONFIG = /(?<project_id>{[^}]*}).(?<config>.*)\|(?<platform>.*)\.Build.* = (?<mapped_config>.*)\|(?<mapped_platform>(.)*)/i
 REGEX_SOLUTION_GLOBAL_CONFIG_END = /EndGlobalSection/i
 
+#
+# Project regex
 REGEX_PROJECT_GUID = /<ProjectGuid>(?<project_id>.*)<\/ProjectGuid>/i
+REGEX_PROJECT_TYPE_GUIDS = /<ProjectTypeGuids>(?<project_type_guids>.*)<\/ProjectTypeGuids>/i
 REGEX_PROJECT_OUTPUT_TYPE = /<OutputType>(?<output_type>.*)<\/OutputType>/i
 REGEX_PROJECT_ASSEMBLY_NAME = /<AssemblyName>(?<assembly_name>.*)<\/AssemblyName>/i
-REGEX_PROJECT_ANDROID_MANIFEST = /<AndroidManifest>(?<manifest_path>.*)<\/AndroidManifest>/i
-REGEX_PROJECT_ANDROID_PACKAGE_NAME = /<manifest.*package=\"(?<package_name>.*)\">/i
-REGEX_PROJECT_MTOUCH_ARCH = /<MtouchArch>(?<arch>.*)<\/MtouchArch>/i
 REGEX_PROJECT_PROPERTY_GROUP_WITH_CONDITION = /<PropertyGroup Condition=\"\s*'\$\(Configuration\)\|\$\(Platform\)'\s*==\s*'(?<config>.*)\|(?<platform>.*)'\s*\">/i
 REGEX_PROJECT_PROPERTY_GROUP_END = /<\/PropertyGroup>/i
 REGEX_PROJECT_OUTPUT_PATH = /<OutputPath>(?<output_path>.*)<\/OutputPath>/i
-REGEX_PROJECT_IPA_PACKAGE = /<IpaPackageName>/i
-REGEX_PROJECT_BUILD_IPA = /<BuildIpa>True<\/BuildIpa>/i
-REGEX_PROJECT_ANDROID_APPLICATION= /<AndroidApplication>True<\/AndroidApplication>/i
-REGEX_PROJECT_SIGN_ANDROID = /<AndroidKeyStore>True<\/AndroidKeyStore>/i
-REGEX_PROJECT_REFERENCE_XAMARIN_IOS = /Include="Xamarin.iOS"/i
-REGEX_PROJECT_REFERENCE_XAMARIN_ANDROID = /Include="Mono.Android"/i
-REGEX_PROJECT_REFERENCE_XAMARIN_UITEST = /Include="Xamarin.UITest/i
-REGEX_PROJECT_REFERENCE_NUNIT_FRAMEWORK = /Include="nunit.framework/i
-
 REGEX_PROJECT_PROJECT_REFERENCE_START = /<ProjectReference Include="(?<project_path>.*)">/i
 REGEX_PROJECT_PROJECT_REFERENCE_END = /<\/ProjectReference>/i
 REGEX_PROJECT_REFERRED_PROJECT_ID = /<Project>(?<id>.*)<\/Project>/i
 
+#
+# Xamarin.iOS specific regex
+REGEX_PROJECT_IPA_PACKAGE = /<IpaPackageName>/i
+REGEX_PROJECT_BUILD_IPA = /<BuildIpa>True<\/BuildIpa>/i
+REGEX_PROJECT_MTOUCH_ARCH = /<MtouchArch>(?<arch>.*)<\/MtouchArch>/i
+
+#
+# Xamarin.Android specific regex
+REGEX_PROJECT_ANDROID_MANIFEST = /<AndroidManifest>(?<manifest_path>.*)<\/AndroidManifest>/i
+REGEX_PROJECT_ANDROID_PACKAGE_NAME = /<manifest.*package=\"(?<package_name>.*)\">/i
+REGEX_PROJECT_ANDROID_APPLICATION= /<AndroidApplication>True<\/AndroidApplication>/i
+REGEX_PROJECT_SIGN_ANDROID = /<AndroidKeyStore>True<\/AndroidKeyStore>/i
+
+#
+# Assembly references
+REGEX_PROJECT_REFERENCE_XAMARIN_UITEST = /Include="Xamarin.UITest"/i
+REGEX_PROJECT_REFERENCE_NUNIT_FRAMEWORK = /Include="nunit.framework"/i
+
 REGEX_ARCHIVE_DATE_TIME = /\s(.*[AM]|[PM]).*\./i
 
 class Analyzer
+  @project_type_guids = {
+    ios: "FEACFBD2-3405-455C-9665-78FE426C6842",
+    mac: "A3F8F2AB-B479-4A4A-A458-A89E7DC349F1",
+    tvos: "06FA79CB-D6CD-4721-BB4B-1BD202089C55",
+    android: "EFBA0AD7-5A72-4C68-AF49-83D382785DCF"
+  }
+
+  class << self
+    attr_accessor :project_type_guids
+  end
+
   def analyze(path)
     @path = path
 
@@ -55,10 +80,8 @@ class Analyzer
     when PROJECT
       puts
       puts "\e[32mYou are trying to build a project file at path #{@path}\e[0m"
-      puts "You should specify the solution path and set the type of the project you would like to build: [iOS|Android]"
+      puts "You should specify the solution path and set the type of the project you would like to build: [iOS|Android|Mac]"
       puts
-      raise "Unsupported type detected"
-    else
       raise "Unsupported type detected"
     end
 
@@ -90,21 +113,24 @@ class Analyzer
       end
 
       case project[:api]
-        when 'ios'
-          next unless project_type_filter.include? 'ios'
+        when Api::IOS
+          next unless project_type_filter.include? Api::IOS
           next unless project[:output_type].eql?('exe')
           next unless project_configuration
 
           generate_archive = should_generate_archives?(project[:configs][project_configuration][:mtouch_arch])
 
-          build_commands << mdtool_build_command(
-            generate_archive ? 'archive' : 'build',
-            project_configuration,
-            @solution[:path],
-            project[:name]
-          ).join(' ')
-        when 'android'
-          next unless project_type_filter.include? 'android'
+          build_commands << mdtool_build_command('build', project_configuration, @solution[:path], project[:name])
+          build_commands << mdtool_build_command('archive', project_configuration, @solution[:path], project[:name]) if generate_archive
+        when Api::MAC
+          next unless project_type_filter.include? Api::MAC
+          next unless project[:output_type].eql?('exe')
+          next unless project_configuration
+
+          build_commands << mdtool_build_command('build', project_configuration, @solution[:path], project[:name])
+          build_commands << mdtool_build_command('archive', project_configuration, @solution[:path], project[:name])
+        when Api::ANDROID
+          next unless project_type_filter.include? Api::ANDROID
           next unless project[:android_application]
           next unless project_configuration
 
@@ -121,7 +147,7 @@ class Analyzer
           build_command << "/verbosity:minimal"
           build_command << "/nologo"
 
-          build_commands << build_command.join(' ')
+          build_commands << build_command
         else
           next
       end
@@ -141,7 +167,7 @@ class Analyzer
       next unless project_configuration
 
       # Check whether it is a UITest project
-      next if project[:tests].nil? || !project[:tests].include?('uitest')
+      next if project[:tests].nil? || !project[:tests].include?(Tests::UITEST)
 
       # Checked referenced projects if it includes
       # the correct project type [iOS|Android]
@@ -158,7 +184,7 @@ class Analyzer
         build_commands.concat(command) unless command.nil?  
       end
 
-      build_commands << mdtool_build_command('build', project_configuration, @solution[:path], project[:name]).join(' ')
+      build_commands << mdtool_build_command('build', project_configuration, @solution[:path], project[:name])
     end
 
     build_commands
@@ -177,7 +203,7 @@ class Analyzer
       project_configuration = project[:mappings][configuration]
       project_config = project_configuration.split('|').first
 
-      next if project[:tests].nil? || !project[:tests].include?('nunit')
+      next if project[:tests].nil? || !project[:tests].include?(Api::NUNIT)
       next unless project_configuration
 
       command = [
@@ -187,7 +213,7 @@ class Analyzer
           "\"/config:#{project_config}\""
       ]
       command << options unless options.nil?
-      build_commands << command.join(' ')
+      build_commands << command
     end
 
     build_commands
@@ -203,8 +229,8 @@ class Analyzer
       project_configuration = project[:mappings][configuration]
 
       case project[:api]
-      when 'ios'
-        next unless project_type_filter.include? 'ios'
+      when Api::IOS
+        next unless project_type_filter.include? Api::IOS
         next unless project[:output_type].eql?('exe')
         next unless project_configuration
 
@@ -224,9 +250,18 @@ class Analyzer
           full_output_path = export_artifact(project[:assembly_name], full_output_dir, '.app')
 
           outputs_hash[project[:id]][:app] = full_output_path if full_output_path
-        end
-      when 'android'
-        next unless project_type_filter.include? 'android'
+          end
+      when Api::MAC
+        next unless project_type_filter.include? Api::MAC
+        next unless project[:output_type].eql?('exe')
+        next unless project_configuration
+
+        outputs_hash[project[:id]] = {}
+        full_output_path = latest_archive_path(project[:name])
+
+        outputs_hash[project[:id]][:xcarchive] = full_output_path if full_output_path
+      when Api::ANDROID
+        next unless project_type_filter.include? Api::ANDROID
         next unless project[:android_application]
         next unless project_configuration
 
@@ -287,7 +322,7 @@ class Analyzer
 
   def type
     return SOLUTION if @path.downcase.end_with? SLN_EXT
-    return PROJECT if @path.downcase.end_with? CSPROJ_EXT
+    return PROJECT if @path.downcase.end_with? CSPROJ_EXT or @path.downcase.end_with? FSPROJ_EXT
     raise "unsupported type for path: #{@path}"
   end
 
@@ -372,6 +407,12 @@ class Analyzer
         end
       end
 
+      # Project type guid
+      match = line.match(REGEX_PROJECT_TYPE_GUIDS)
+      if match != nil && match.captures != nil && match.captures.count == 1
+        project[:project_type_guids] = match.captures[0]
+      end
+
       # output type
       match = line.match(REGEX_PROJECT_OUTPUT_TYPE)
       if match != nil && match.captures != nil && match.captures.count == 1
@@ -432,17 +473,14 @@ class Analyzer
       end
 
       # API
-      match = line.match(REGEX_PROJECT_REFERENCE_XAMARIN_IOS)
-      project[:api] = 'ios' if match != nil
-
-      match = line.match(REGEX_PROJECT_REFERENCE_XAMARIN_ANDROID)
-      project[:api] = 'android' if match != nil
+      match = line.match(REGEX_PROJECT_TYPE_GUIDS)
+      project[:api] = identify_project_api(match.captures.first) if match != nil && match.captures != nil && match.captures.count == 1
 
       match = line.match(REGEX_PROJECT_REFERENCE_XAMARIN_UITEST)
-      (project[:tests] ||= []) << 'uitest' if match != nil if match != nil
+      (project[:tests] ||= []) << Tests::UITEST if match != nil if match != nil
 
       match = line.match(REGEX_PROJECT_REFERENCE_NUNIT_FRAMEWORK)
-      (project[:tests] ||= []) << 'nunit' if match != nil
+      (project[:tests] ||= []) << Tests::NUNIT if match != nil
 
       # Referred projects
       match = line.match(REGEX_PROJECT_PROJECT_REFERENCE_END)
@@ -462,7 +500,7 @@ class Analyzer
     end
 
     # Joint uitest project to projects
-    if !project[:tests].nil? && project[:tests].include?('uitest') && !project[:referred_project_ids].nil?
+    if !project[:tests].nil? && project[:tests].include?(Tests::UITEST) && !project[:referred_project_ids].nil?
       project[:referred_project_ids].each do |project_id|
         referred_project = project_with_id(project_id)
         next unless referred_project
@@ -539,5 +577,17 @@ class Analyzer
     end
 
     latest_archive
+  end
+
+  def identify_project_api(project_type_guids)
+    if project_type_guids.include? Analyzer.project_type_guids[:ios]
+      Api::IOS
+    elsif project_type_guids.include? Analyzer.project_type_guids[:android]
+      Api::ANDROID
+    elsif project_type_guids.include? Analyzer.project_type_guids[:mac]
+      Api::MAC
+    elsif project_type_guids.include? Analyzer.project_type_guids[:tvos]
+      Api::TVOS
+    end
   end
 end

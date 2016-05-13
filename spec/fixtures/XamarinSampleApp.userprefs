@@ -1,0 +1,15 @@
+﻿<Properties StartupItem="Mac/XamarinSampleApp.Mac.csproj">
+  <MonoDevelop.Ide.Workbench ActiveDocument="UITests/AppInitializer.cs">
+    <Files>
+      <File FileName="UITests/AppInitializer.cs" Line="1" Column="1" />
+    </Files>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug|iPhone" />
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore />
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+  <MonoDevelop.Ide.ItemProperties.XamarinSampleApp.Mac PreferredExecutionTarget="MonoDevelop.Default" />
+  <MonoDevelop.Ide.ItemProperties.XamarinSampleApp.Droid PreferredExecutionTarget="Android.AwesomeN" />
+  <MonoDevelop.Ide.ItemProperties.XamarinSampleApp.iOS PreferredExecutionTarget="MonoDevelop.IPhone.IPhoneSimulatorTarget.5CACB39F-5CEE-452C-B617-3B0AD676E965" />
+</Properties>
