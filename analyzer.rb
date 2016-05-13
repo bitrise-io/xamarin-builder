@@ -56,6 +56,7 @@ REGEX_PROJECT_SIGN_ANDROID = /<AndroidKeyStore>True<\/AndroidKeyStore>/i
 # Assembly references
 REGEX_PROJECT_REFERENCE_XAMARIN_UITEST = /Include="Xamarin.UITest"/i
 REGEX_PROJECT_REFERENCE_NUNIT_FRAMEWORK = /Include="nunit.framework"/i
+REGEX_PROJECT_REFERENCE_NUNIT_LITE_FRAMEWORK = /Include="MonoTouch.NUnitLite"/i
 
 REGEX_ARCHIVE_DATE_TIME = /\s(.*[AM]|[PM]).*\./i
 
@@ -222,7 +223,7 @@ class Analyzer
       # Do this check as soon as possible,
       # to allow collecting errors of building test command
       # for relevant (Nunit) projects.
-      next if project[:tests].nil? || !project[:tests].include?(Api::NUNIT)
+      next if project[:tests].nil? || !project[:tests].include?(Tests::NUNIT) || project[:tests].include?(Tests::UITEST)
 
       test_project = project[:name]
 
@@ -517,7 +518,7 @@ class Analyzer
       project[:api] = identify_project_api(match.captures.first) if match != nil && match.captures != nil && match.captures.count == 1
 
       match = line.match(REGEX_PROJECT_REFERENCE_XAMARIN_UITEST)
-      (project[:tests] ||= []) << Tests::UITEST if match != nil if match != nil
+      (project[:tests] ||= []) << Tests::UITEST if match != nil
 
       match = line.match(REGEX_PROJECT_REFERENCE_NUNIT_FRAMEWORK)
       (project[:tests] ||= []) << Tests::NUNIT if match != nil
