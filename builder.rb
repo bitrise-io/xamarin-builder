@@ -53,7 +53,7 @@ class Builder
     test_commands, errors = @analyzer.build_test_commands(@configuration, @platform, @project_type_filter)
 
     if test_commands.nil? || test_commands.empty?
-      errors ||= ['Failed to create test command']
+      errors = ['Failed to create test command'] if errors.empty?
       raise errors.join("\n")
     end
 
@@ -72,7 +72,7 @@ class Builder
     test_commands, errors = @analyzer.nunit_test_commands(@configuration, @platform, options)
 
     if test_commands.nil? || test_commands.empty?
-      errors ||= ['Failed to create test command']
+      errors = ['Failed to create test command'] if errors.empty?
       raise errors.join("\n")
     end
 
