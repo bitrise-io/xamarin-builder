@@ -291,7 +291,9 @@ class Analyzer
           full_output_path = export_artifact(project[:assembly_name], full_output_dir, '.app')
 
           outputs_hash[project[:id]][:app] = full_output_path if full_output_path
-          end
+        end
+
+        outputs_hash[project[:id]][:api] = project[:api]
       when Api::MAC
         next unless project_type_filter.include? Api::MAC
         next unless project[:output_type].eql?('exe')
@@ -301,6 +303,7 @@ class Analyzer
         full_output_path = latest_archive_path(project[:name])
 
         outputs_hash[project[:id]][:xcarchive] = full_output_path if full_output_path
+        outputs_hash[project[:id]][:api] = project[:api]
       when Api::ANDROID
         next unless project_type_filter.include? Api::ANDROID
         next unless project[:android_application]
@@ -319,6 +322,7 @@ class Analyzer
 
         outputs_hash[project[:id]] = {}
         outputs_hash[project[:id]][:apk] = full_output_path if full_output_path
+        outputs_hash[project[:id]][:api] = project[:api]
       else
         next
       end
