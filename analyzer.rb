@@ -54,9 +54,12 @@ REGEX_PROJECT_SIGN_ANDROID = /<AndroidKeyStore>True<\/AndroidKeyStore>/i
 
 #
 # Assembly references
-REGEX_PROJECT_REFERENCE_XAMARIN_UITEST = /Include="Xamarin.UITest"/i
-REGEX_PROJECT_REFERENCE_NUNIT_FRAMEWORK = /Include="nunit.framework"/i
-REGEX_PROJECT_REFERENCE_NUNIT_LITE_FRAMEWORK = /Include="MonoTouch.NUnitLite"/i
+# <Reference Include="Xamarin.UITest">
+REGEX_PROJECT_REFERENCE_XAMARIN_UITEST = /Include="Xamarin.UITest/i
+# <Reference Include="nunit.framework, Version=2.6.4.14350, Culture=neutral, PublicKeyToken=96d09a1eb7f44a77, processorArchitecture=MSIL">
+REGEX_PROJECT_REFERENCE_NUNIT_FRAMEWORK = /Include="nunit.framework/i
+# <Reference Include="MonoTouch.NUnitLite" />
+REGEX_PROJECT_REFERENCE_NUNIT_LITE_FRAMEWORK = /Include="MonoTouch.NUnitLite/i
 
 REGEX_ARCHIVE_DATE_TIME = /\s(.*[AM]|[PM]).*\./i
 
@@ -189,6 +192,19 @@ class Analyzer
       referred_projects = []
       project[:referred_project_ids].each do |id|
         referred_project = project_with_id(id)
+
+        unless referred_project
+          errors << "project reference exist with project id: #{id}, but project not found in solution"
+          errors << project.to_s
+          next
+        end
+
+        unless referred_project[:api]
+          errors << "no api found for referred project: #{referred_project}"
+          errors << project.to_s
+          next
+        end
+
         referred_projects << referred_project if project_type_filter.include? referred_project[:api]
       end
 
