@@ -117,8 +117,8 @@ class Analyzer
       end
 
       case project[:api]
-        when Api::IOS
-          next unless project_type_filter.include? Api::IOS
+        when Api::IOS, Api::TVOS
+          next unless project_type_filter.any? { |api| [Api::IOS, Api::TVOS].include? api }
           next unless project[:output_type].eql?('exe')
           next unless project_configuration
 
@@ -286,8 +286,8 @@ class Analyzer
       project_configuration = project[:mappings][configuration]
 
       case project[:api]
-      when Api::IOS
-        next unless project_type_filter.include? Api::IOS
+      when Api::IOS, Api::TVOS
+        next unless project_type_filter.any? { |api| [Api::IOS, Api::TVOS].include? api }
         next unless project[:output_type].eql?('exe')
         next unless project_configuration
 
