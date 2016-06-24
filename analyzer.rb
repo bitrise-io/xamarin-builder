@@ -706,7 +706,7 @@ class Analyzer
     latest_archive = nil
     latest_archive_date = nil
 
-    archives = Dir[File.join(default_archives_path, "**/#{project_name}*.xcarchive")]
+    archives = Dir[File.join(default_archives_path, "**/#{project_name} *.xcarchive")]
     archives.each do |archive_path|
       match = archive_path.match(REGEX_ARCHIVE_DATE_TIME)
 
