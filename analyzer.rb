@@ -217,6 +217,13 @@ class Analyzer
       # Checked referenced projects if it includes
       # the correct project type [iOS|Android]
       referred_projects = []
+
+      unless project[:referred_project_ids]
+        errors << "no referred projects found for #{test_project}"
+        errors << project.to_s
+        next
+      end
+
       project[:referred_project_ids].each do |id|
         referred_project = project_with_id(id)
 
