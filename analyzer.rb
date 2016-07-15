@@ -512,7 +512,7 @@ class Analyzer
           solution_platform = match.captures[2].strip
           project_configuration = match.captures[3].strip
           project_platform = match.captures[4].strip
-          project_platform = "AnyCPU" if project_platform.eql? 'Any CPU' # Fix MS bug
+          project_platform = 'AnyCPU' if project_platform.eql? 'Any CPU' # Fix MS bug
 
           project = project_with_id(project_id)
           next unless project
@@ -525,6 +525,20 @@ class Analyzer
       match = line.match(REGEX_SOLUTION_GLOBAL_PROJECT_CONFIG_START)
       parse_project_configs = true if match != nil
     end
+
+    # Remove projects without any mapping or config
+    valid_projects = []
+    @solution[:projects].each do |project|
+      has_mapping = (project[:mappings] && project[:mappings].length)
+      has_config = (project[:configs] && project[:configs].length)
+
+      puts "project #{project} is referred in solution, but does not contains any mapping" unless has_mapping
+      puts "project #{project} is referred in solution, but does not contains any config" unless has_config
+
+      valid_projects << project if has_mapping && has_config
+    end
+
+    @solution[:projects] = valid_projects
   end
 
   def analyze_project(project)
