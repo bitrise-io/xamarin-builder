@@ -259,6 +259,54 @@ class Analyzer
     [build_commands, errors]
   end
 
+  def nunit_light_test_commands(config, platform, touch_unit_server, logfile)
+    configuration = "#{config}|#{platform}"
+    build_commands = []
+    errors = []
+
+    raise "Touch.Server.exe not found at path: #{touch_unit_server}" unless File.exists?(touch_unit_server)
+
+    @solution[:projects].each do |project|
+      next if project[:tests].nil? || !project[:tests].include?(Tests::NUNIT_LITE)
+
+      test_project = project[:name]
+
+      unless project[:mappings]
+        errors << "#{test_project} not found in solution mappings"
+        errors << project.to_s
+        next
+      end
+
+      project_configuration = project[:mappings][configuration]
+      unless project_configuration
+        errors << "no mapping found for #{test_project} with #{configuration}"
+        errors << project.to_s
+        next
+      end
+
+      project_config = project_configuration.split('|').first
+      unless project_config
+        errors << "#{test_project} configuration #{project_configuration} is invalid"
+        errors << project.to_s
+        next
+      end
+
+      build_commands << mdtool_build_command('build', project_configuration, @solution[:path], project[:name])
+
+      command = [
+          "mono --debug",
+          "\"#{touch_unit_server}\"",
+          "--launchsim",
+          "-autoexit",
+          "-logfile=#{logfile}"
+      ]
+
+      build_commands << command
+    end
+
+    [build_commands, errors]
+  end
+
   def nunit_test_commands(config, platform, options)
     configuration = "#{config}|#{platform}"
     build_commands = []
@@ -704,6 +752,9 @@ class Analyzer
 
       match = line.match(REGEX_PROJECT_REFERENCE_NUNIT_FRAMEWORK)
       (project[:tests] ||= []) << Tests::NUNIT if match != nil
+
+      match = line.match(REGEX_PROJECT_REFERENCE_NUNIT_LITE_FRAMEWORK)
+      (project[:tests] ||= []) << Tests::NUNIT_LITE if match != nil
 
       # Referred projects
       match = line.match(REGEX_PROJECT_PROJECT_REFERENCE_END)
