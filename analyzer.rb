@@ -413,9 +413,22 @@ class Analyzer
         full_output_dir = File.join(project_dir, rel_output_dir)
 
         package_name = project[:android_manifest_path].nil? ? '*' : android_package_name(project[:android_manifest_path])
+        sign_android = project[:configs][project_configuration][:sign_android]
 
         full_output_path = nil
-        full_output_path = export_artifact(package_name, full_output_dir, '.apk') if package_name
+
+        if sign_android
+          pattern = File.join(full_output_dir, "#{package_name}*signed.apk")
+          artifact_path = Dir.glob(pattern, File::FNM_CASEFOLD).first if package_name
+          full_output_path = artifact_path if !artifact_path.nil? && File.exist?(artifact_path)
+
+          pattern = File.join(full_output_dir, '*signed.apk')
+          artifact_path = Dir.glob(pattern, File::FNM_CASEFOLD).first
+          full_output_path = artifact_path if full_output_path.nil? && !artifact_path.nil? && File.exist?(artifact_path)
+        elsif package_name
+          full_output_path = export_artifact(package_name, full_output_dir, '.apk')
+        end
+ 
         full_output_path = export_artifact('*', full_output_dir, '.apk') unless full_output_path
 
         outputs_hash[project[:id]] = {}
