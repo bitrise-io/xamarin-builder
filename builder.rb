@@ -1,7 +1,10 @@
 require 'tmpdir'
 require 'open-uri'
+require 'open3'
+
 require_relative './analyzer'
 require_relative './common_constants'
+require_relative './timer'
 
 class Builder
   def initialize(path, configuration, platform, project_type_filter=nil)
@@ -22,7 +25,7 @@ class Builder
     @analyzer.analyze(@path)
   end
 
-  def build
+  def build(retry_on_hang = true)
     build_commands = @analyzer.build_commands(@configuration, @platform, @project_type_filter)
     if build_commands.empty?
       # No iOS or Android application found to build
@@ -31,14 +34,78 @@ class Builder
     end
 
     build_commands.each do |build_command|
-      puts
-      puts "\e[34m#{build_command}\e[0m"
-      puts
+      if ([MDTOOL_PATH, 'build', 'archive'] & build_command).any?
+        puts
+        puts 'Run build in diagnostic mode:'
+        puts "\e[34m#{build_command}\e[0m"
+        puts
 
-      raise 'Build failed' unless system(build_command.join(' '))
+        run_mdtool_in_diagnostic_mode(build_command, retry_on_hang)
+      else
+        puts
+        puts "\e[34m#{build_command}\e[0m"
+        puts
+
+        raise 'Build failed' unless system(build_command.join(' '))
+      end
     end
 
     @generated_files = @analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
+  end
+
+  # README:
+  # This method will run `mdtool build` in diagnostic mode.
+  # If mdtool will hang trying to load projects its process will be killed
+  # and stack trace for each thread of mdtool will be printed to stdout.
+  # Issue on Bugzilla: https://bugzilla.xamarin.com/show_bug.cgi?id=42378
+
+  # List of things to be removed as as soon as #42378 will be resolved:
+  # 1) run_mdtool_in_diagnostic_mode method
+  # 2) hijack_process method
+  # 3) MDTOOL_PATH constant in Builder class
+  # 4) Entire Timer class
+  # 5) if/else logic in Builder.build
+
+  MDTOOL_PATH = "\"/Applications/Xamarin Studio.app/Contents/MacOS/mdtool\""
+
+  def run_mdtool_in_diagnostic_mode(mdtool_build_command, retry_on_hang = true)
+    pid = nil
+    timeout = false
+
+    timer = Timer.new(300) do # 5 minutes timeout
+      timeout = true
+
+      puts
+      puts "\e[33mCommand timed out, terminating...\e[0m"
+
+      hijack_process(pid)
+    end
+
+    Open3.popen3(mdtool_build_command.join(' ')) do |stdin, stdout, stderr, wait_thr|
+      pid = wait_thr.pid # pid of the started process.
+
+      stdout.each do |line|
+        puts line
+
+        timer.stop if timer.running?
+        timer.start if line.include? 'Loading projects'
+      end
+    end
+
+    if timeout
+      raise 'Command timed out' unless retry_on_hang
+
+      puts
+      puts "\e[33mRertying command:\e[0m"
+      puts "\e[34m#{mdtool_build_command}\e[0m"
+      puts
+
+      run_mdtool_in_diagnostic_mode(mdtool_build_command, false)
+    end
+  end
+
+  def hijack_process(process_id)
+    puts `kill -QUIT #{process_id}`
   end
 
   def build_solution
