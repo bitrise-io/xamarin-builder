@@ -1,6 +1,11 @@
-## Changelog (Current version: 0.9.2)
+## Changelog (Current version: 0.9.3)
 
 -----------------
+
+### 0.9.3 (2016 Aug 25)
+
+* [f939aae] prepare for 0.9.3
+* [9ac04fd] force kill process (#40)
 
 ### 0.9.2 (2016 Aug 24)
 
@@ -16,4 +21,4 @@
 
 -----------------
 
-Updated: 2016 Aug 24
+Updated: 2016 Aug 25
