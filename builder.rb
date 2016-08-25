@@ -72,17 +72,28 @@ class Builder
     pid = nil
     timeout = false
 
-    timer = Timer.new(300) do # 5 minutes timeout
+    # force kill process if kill -QUIT does not stops it
+    force_timer = Timer.new(60) do
+      puts
+      puts "\e[33mForce terminating...\e[0m"
+
+      Process.kill('SIGKILL', pid)
+    end
+
+    # kill process if hangs on Loading projects...
+    timer = Timer.new(300) do
       timeout = true
 
       puts
       puts "\e[33mCommand timed out, terminating...\e[0m"
 
-      hijack_process(pid)
+      force_timer.start
+
+      Process.kill('QUIT', pid)
     end
 
-    Open3.popen3(mdtool_build_command.join(' ')) do |stdin, stdout, stderr, wait_thr|
-      pid = wait_thr.pid # pid of the started process.
+    Open3.popen3(mdtool_build_command.join(' ')) do |_, stdout, _, wait_thr|
+      pid = wait_thr.pid
 
       stdout.each do |line|
         puts line
@@ -91,6 +102,8 @@ class Builder
         timer.start if line.include? 'Loading projects'
       end
     end
+
+    force_timer.stop
 
     if timeout
       raise 'Command timed out' unless retry_on_hang
@@ -102,10 +115,6 @@ class Builder
 
       run_mdtool_in_diagnostic_mode(mdtool_build_command, false)
     end
-  end
-
-  def hijack_process(process_id)
-    puts `kill -QUIT #{process_id}`
   end
 
   def build_solution
