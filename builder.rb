@@ -25,34 +25,6 @@ class Builder
     @analyzer.analyze(@path)
   end
 
-  def build(retry_on_hang = true)
-    build_commands = @analyzer.build_commands(@configuration, @platform, @project_type_filter)
-    if build_commands.empty?
-      # No iOS or Android application found to build
-      # Switching to framework building
-      build_commands << @analyzer.build_solution_command(@configuration, @platform)
-    end
-
-    build_commands.each do |build_command|
-      if ([MDTOOL_PATH, 'build', 'archive'] & build_command).any?
-        puts
-        puts 'Run build in diagnostic mode:'
-        puts "\e[34m#{build_command}\e[0m"
-        puts
-
-        run_mdtool_in_diagnostic_mode(build_command, retry_on_hang)
-      else
-        puts
-        puts "\e[34m#{build_command}\e[0m"
-        puts
-
-        raise 'Build failed' unless system(build_command.join(' '))
-      end
-    end
-
-    @generated_files = @analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
-  end
-
   # README:
   # This method will run `mdtool build` in diagnostic mode.
   # If mdtool will hang trying to load projects its process will be killed
@@ -92,6 +64,8 @@ class Builder
       Process.kill('QUIT', pid)
     end
 
+    return_value = nil
+
     Open3.popen3(mdtool_build_command.join(' ')) do |_, stdout, _, wait_thr|
       pid = wait_thr.pid
 
@@ -101,35 +75,80 @@ class Builder
         timer.stop if timer.running?
         timer.start if line.include? 'Loading projects'
       end
+
+      return_value = wait_thr.value
     end
 
     force_timer.stop
 
+    success = return_value.success?
+
     if timeout
-      raise 'Command timed out' unless retry_on_hang
+      unless retry_on_hang
+        puts "\e[31mCommand timed out\e[0m"
+        return false
+      end
 
       puts
       puts "\e[33mRertying command:\e[0m"
       puts "\e[34m#{mdtool_build_command}\e[0m"
       puts
 
-      run_mdtool_in_diagnostic_mode(mdtool_build_command, false)
+      success = run_mdtool_in_diagnostic_mode(mdtool_build_command, false)
     end
+
+    success
   end
 
-  def build_solution
-    build_command = @analyzer.build_solution_command(@configuration, @platform)
+  def build(retry_on_hang = true)
+    build_commands = @analyzer.build_commands(@configuration, @platform, @project_type_filter, nil)
+    if build_commands.empty?
+      # No iOS or Android application found to build
+      # Switching to framework building
+      build_commands << @analyzer.build_solution_command(@configuration, @platform)
+    end
 
-    puts
-    puts "\e[34m#{build_command}\e[0m"
-    puts
+    build_commands.each do |build_command|
+      if ([MDTOOL_PATH, 'build', 'archive'] & build_command).any?
+        puts
+        puts 'Run build in diagnostic mode:'
+        puts "\e[34m#{build_command}\e[0m"
+        puts
 
-    raise 'Build failed' unless system(build_command.join(' '))
+        raise 'Build failed' unless run_mdtool_in_diagnostic_mode(build_command, retry_on_hang)
+      else
+        puts
+        puts "\e[34m#{build_command}\e[0m"
+        puts
+
+        raise 'Build failed' unless system(build_command.join(' '))
+      end
+    end
 
     @generated_files = @analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
   end
 
-  def build_test
+  def build_solution(retry_on_hang = true)
+    build_command = @analyzer.build_solution_command(@configuration, @platform)
+    if ([MDTOOL_PATH, 'build', 'archive'] & build_command).any?
+      puts
+      puts 'Run build in diagnostic mode:'
+      puts "\e[34m#{build_command}\e[0m"
+      puts
+
+      raise 'Build failed' unless run_mdtool_in_diagnostic_mode(build_command, retry_on_hang)
+    else
+      puts
+      puts "\e[34m#{build_command}\e[0m"
+      puts
+
+      raise 'Build failed' unless system(build_command.join(' '))
+    end
+
+    @generated_files = @analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
+  end
+
+  def build_test(retry_on_hang = true)
     test_commands, errors = @analyzer.build_test_commands(@configuration, @platform, @project_type_filter)
 
     if test_commands.nil? || test_commands.empty?
@@ -138,17 +157,26 @@ class Builder
     end
 
     test_commands.each do |test_command|
-      puts
-      puts "\e[34m#{test_command}\e[0m"
-      puts
+      if ([MDTOOL_PATH, 'build', 'archive'] & test_command).any?
+        puts
+        puts 'Run build in diagnostic mode:'
+        puts "\e[34m#{test_command}\e[0m"
+        puts
 
-      raise 'Test failed' unless system(test_command.join(' '))
+        raise 'Test failed' unless run_mdtool_in_diagnostic_mode(test_command, retry_on_hang)
+      else
+        puts
+        puts "\e[34m#{test_command}\e[0m"
+        puts
+
+        raise 'Test failed' unless system(test_command.join(' '))
+      end
     end
 
     @generated_files = @analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
   end
 
-  def run_nunit_tests(options = nil)
+  def run_nunit_tests(options = nil, retry_on_hang = true)
     test_commands, errors = @analyzer.nunit_test_commands(@configuration, @platform, options)
 
     if test_commands.nil? || test_commands.empty?
@@ -157,15 +185,24 @@ class Builder
     end
 
     test_commands.each do |test_command|
-      puts
-      puts "\e[34m#{test_command}\e[0m"
-      puts
+      if ([MDTOOL_PATH, 'build', 'archive'] & test_command).any?
+        puts
+        puts 'Run build in diagnostic mode:'
+        puts "\e[34m#{test_command}\e[0m"
+        puts
 
-      raise 'Test failed' unless system(test_command.join(' '))
+        raise 'Test failed' unless run_mdtool_in_diagnostic_mode(test_command, retry_on_hang)
+      else
+        puts
+        puts "\e[34m#{test_command}\e[0m"
+        puts
+
+        raise 'Test failed' unless system(test_command.join(' '))
+      end
     end
   end
 
-  def run_nunit_lite_tests
+  def run_nunit_lite_tests(retry_on_hang = true)
     touch_unit_server = get_touch_unit_server
 
     logfile = 'tests.log'
@@ -178,20 +215,28 @@ class Builder
 
     app_file = nil
     test_commands.each do |test_command|
-      puts
-      puts "\e[34m#{test_command}\e[0m"
-      puts
+      test_command.collect! { |element| (element == '--launchsim') ? "--launchsim #{app_file}" : element } if test_command.include?("\"#{touch_unit_server}\"") && !app_file.nil?
 
-      command = test_command.join(' ')
-      command.sub! '--launchsim', "--launchsim #{app_file}" if command.include? touch_unit_server and !app_file.nil?
+      if ([MDTOOL_PATH, 'build', 'archive'] & test_command).any?
+        puts
+        puts 'Run build in diagnostic mode:'
+        puts "\e[34m#{test_command}\e[0m"
+        puts
 
-      raise 'Test failed' unless system(command)
+        raise 'Test failed' unless run_mdtool_in_diagnostic_mode(test_command, retry_on_hang)
+      else
+        puts
+        puts "\e[34m#{test_command}\e[0m"
+        puts
 
-      if command.include? 'mdtool'
-        @generated_files = @analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
-        @generated_files.each do |_, project_output|
-          app_file = project_output[:app] if project_output[:api] == Api::IOS and project_output[:app]
-        end
+        raise 'Test failed' unless system(test_command.join(' '))
+      end
+
+      next unless test_command.include? MDTOOL_PATH
+
+      @generated_files = @analyzer.collect_generated_files(@configuration, @platform, @project_type_filter)
+      @generated_files.each do |_, project_output|
+        app_file = project_output[:app] if project_output[:api] == Api::IOS && project_output[:app]
       end
     end
 
@@ -233,22 +278,23 @@ class Builder
   end
 
   def process_touch_unit_logs(logs_path)
-    results = Hash.new
-    if File.exist?(logs_path)
-      File.open(logs_path, "r") do |f|
-        f.each_line do |line|
-          puts line
-          if line.start_with?('Tests run')
-            line.gsub (/[a-zA-z]*: [0-9]*/) { |s|
-              s.delete!(' ')
-              test_result = s.split(/:/)
-              results[test_result.first] = test_result.last
-            }
-          end
+    results = {}
+
+    raise 'Cant find test logs file' unless File.exist?(logs_path)
+
+    File.open(logs_path, 'r') do |f|
+      f.each_line do |line|
+        puts line
+
+        next unless line.start_with?('Tests run')
+
+        line.gsub(/[a-zA-z]*: [0-9]*/) do |s|
+          s.delete!(' ')
+          test_result = s.split(/:/)
+
+          results[test_result.first] = test_result.last
         end
       end
-    else
-      raise 'Cant find test logs file'
     end
 
     results
